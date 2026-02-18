@@ -1,4 +1,4 @@
-# NeuRound: A Learning-to-Optimize (L2O) framework for Mixed-Integer Nonlinear Programming (MINLP)
+# Neuround: A Learning-to-Optimize (L2O) framework for Mixed-Integer Nonlinear Programming (MINLP)
 
 ![Framework](img/pipeline.png)
 
