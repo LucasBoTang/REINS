@@ -51,9 +51,10 @@ class GradientProjection:
         device = next(iter(xs.values())).device
         d = 1.0
 
+        # Build temp data once, update in-place each iteration
+        temp_data = {**data}
         for _ in range(self.num_steps):
-            # Build temp data with current xs
-            temp_data = {**data, **xs}
+            temp_data.update(xs)
 
             # Round through components
             for comp in self.rounding_components:
