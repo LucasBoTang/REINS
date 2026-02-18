@@ -85,10 +85,10 @@ class abcParamSolver(ABC):
         # Iterate through parameter categories
         for key, val in param_dict.items():
             param = self.params[key]
-            if isinstance(val, (np.ndarray, list)) and len(param) > 1:
-                # Pyomo bulk update is significantly faster than manual loops
+            if isinstance(val, (np.ndarray, list)) and param.is_indexed():
+                # Pyomo bulk update for indexed params
                 param.store_values({i: v for i, v in enumerate(val)})
-            # Set single value
+            # Set single value (scalar param)
             else:
                 param.set_value(val)
         # Reset warm start flag
