@@ -25,6 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.cfg
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -154,4 +155,4 @@ cython_debug/
 # Dir
 wandb/*
 result/*
-bin/*
+*/bin/*
