@@ -66,6 +66,8 @@ class GradientProjection:
                 out = con(temp_data)
                 viol_key = con.output_keys[2]
                 viols.append(out[viol_key].reshape(batch_size, -1).sum(dim=1))
+            if not viols:
+                break
             total_viol = torch.stack(viols).sum(dim=0) if len(viols) > 1 else viols[0]
 
             # Check convergence
