@@ -57,6 +57,9 @@ Use `variable()` to create decision variables with type metadata. This tells rou
 from reins import variable, VarType
 
 # Pure integer variable
+x = variable("x", num_vars=5, var_types=VarType.INTEGER)
+
+# Equivalent using index-based specification
 x = variable("x", num_vars=5, integer_indices=[0, 1, 2, 3, 4])
 
 # Mixed-integer: indices 0,1 are integer, index 2 is binary, rest continuous
@@ -68,22 +71,13 @@ y = variable("y", var_types=[
 ])
 ```
 
-Typed variables automatically gain useful attributes:
-```python
-x.num_vars            # 5
-x.integer_indices     # [0, 1, 2, 3, 4]
-x.binary_indices      # []
-x.continuous_indices  # []
-x.relaxed             # continuous variable with key "x_rel"
-x.relaxed.key         # "x_rel"
-```
-
 ### Step 2: Build Solution Mapping Network
 
-The solution mapping network learns the mapping $b \mapsto x_{\text{rel}}$: it takes problem parameters as input and outputs a continuous relaxation of the solution. Wrap any PyTorch module in a `Node` to integrate it into the pipeline.
+The solution mapping network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `SmapNode` to integrate it into the pipeline.
 
 ```python
-from reins import MLPBnDrop, Node
+from reins import MLPBnDrop
+from reins.node import SmapNode
 
 num_var = 5
 num_ineq = 5
@@ -93,79 +87,66 @@ smap_net = MLPBnDrop(
     outsize=num_var,
     hsizes=[64] * 4,
     dropout=0.2,      # dropout rate
-    bnorm=True,       # batch norm
+    bnorm=True,       # batch normalization
 )
 
-# Wrap as a Node: input key "b", output key must match x.relaxed.key
-smap = Node(smap_net, ["b"], [x.relaxed.key], name="smap")
+# data["b"] -> smap_net -> data["x_rel"]
+smap = SmapNode(smap_net, ["b"], ["x"], name="smap")
 ```
-
-`Node` specifies the data flow: `data["b"] -> smap_net -> data["x_rel"]`.
 
 
 ### Step 3: Choose a Rounding Layer
 
-Rounding layers convert continuous relaxations to integer solutions. All inherit from `RoundingNode` and read from `"x_rel"` to produce `"x"`.
+Rounding layers convert continuous relaxations to integer solutions.
 
 **Non-learnable (baseline):**
 ```python
-from reins.rounding import STERounding
+from reins.node.rounding import STERounding
 
 rounding = STERounding(x)
 ```
 
-**Learnable (recommended):** these use a secondary network that takes the concatenation of problem parameters $b$ and the relaxed solution $x_{\text{rel}}$, and predicts per-variable rounding decisions.
-
+**Learnable (recommended):**
 ```python
-from reins.rounding import (
+from reins.node.rounding import (
     StochasticAdaptiveSelectionRounding,
     DynamicThresholdRounding,
 )
 
-# Rounding network: [b, x_rel] -> per-variable rounding decisions
 rnd_net = MLPBnDrop(
-    insize=num_ineq + num_var,   # params (b) + relaxed vars (x_rel)
+    insize=num_ineq + num_var,
     outsize=num_var,
     hsizes=[64] * 3,
-    dropout=0,
-    bnorm=False,
 )
 
-# Adaptive Selection (AS): learns rounding direction per variable
+# Adaptive Selection (AS)
 rounding = StochasticAdaptiveSelectionRounding(
-    vars=x,
-    param_keys=["b"],            # which data keys are problem parameters
-    net=rnd_net,
-    continuous_update=True,      # whether to also adjust continuous vars via net
+    vars=x, param_keys=["b"], net=rnd_net, continuous_update=True,
 )
 
-# Dynamic Thresholding (DT): learns per-variable rounding thresholds
+# Dynamic Thresholding (DT)
 rounding = DynamicThresholdRounding(
-    vars=x,
-    param_keys=["b"],
-    net=rnd_net,
-    continuous_update=False,
+    vars=x, param_keys=["b"], net=rnd_net,
 )
 ```
 
 
 ### Step 4: Define Loss (Objectives + Constraints)
 
-REINS uses operator overloading to define objectives and constraints symbolically. The `variable()` calls here create symbolic placeholders — their keys (`"x"`, `"b"`) must match the keys produced by the solution map and the data dict, respectively. They are combined into a `PenaltyLoss` that serves as the self-supervised training signal.
+Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`.
 
 ```python
 import torch
 import numpy as np
 from reins import variable, PenaltyLoss
 
-# Fixed problem coefficients (Q, p, A do not change across instances)
+# Fixed problem coefficients
 rng = np.random.RandomState(17)
 Q = torch.from_numpy(0.01 * np.diag(rng.random(size=num_var))).float()
 p = torch.from_numpy(0.1 * rng.random(num_var)).float()
 A = torch.from_numpy(rng.normal(scale=0.1, size=(num_ineq, num_var))).float()
 
 # Symbolic variables for loss expression
-# "x" matches the rounding layer output; "b" matches the data dict key
 x = variable("x")
 b = variable("b")
 
@@ -173,54 +154,42 @@ b = variable("b")
 f = 0.5 * torch.sum((x @ Q) * x, dim=1) + torch.sum(p * x, dim=1)
 obj = f.minimize(weight=1.0, name="obj")
 
-# Constraint: Ax <= b (with penalty weight)
+# Constraint: Ax <= b
 penalty_weight = 100
 con = penalty_weight * (x @ A.T <= b)
 
-# Combine into loss
 loss = PenaltyLoss(objectives=[obj], constraints=[con])
 ```
 
 
 ### Step 5: Assemble the Solver
 
-`LearnableSolver` composes the solution map, rounding layer, and loss. It automatically validates key/dimension alignment. By default, it builds a `GradientProjection` (1000 steps) for feasibility enforcement at inference.
+`LearnableSolver` composes the solution map, rounding layer, and loss.
 
 ```python
 from reins import LearnableSolver
 
-# Default: projection enabled (projection_steps=1000)
-solver = LearnableSolver(
-    smap_node=smap,
-    rounding_node=rounding,
-    loss=loss,
-)
+# Default: GradientProjection enabled (1000 steps) for feasibility enforcement at inference
+solver = LearnableSolver(smap, rounding, loss)
 
 # Disable projection
-solver = LearnableSolver(
-    smap_node=smap,
-    rounding_node=rounding,
-    loss=loss,
-    projection_steps=0,          # 0 = no projection at inference
-)
+solver = LearnableSolver(smap, rounding, loss, projection_steps=0)
 ```
 
 
 ### Step 6: Prepare Data & Train
 
-Since this is parametric optimization, training data consists of sampled parameter values — each $b^{(i)}$ defines one problem instance. No optimal solutions are needed; the penalty loss in Step 4 provides the training signal.
+Training data consists of sampled parameter values only — no optimal solutions needed.
 
 ```python
 from torch.utils.data import DataLoader
 from reins import DictDataset
 
-# Sample parameter values (each b defines a different problem instance)
 num_data = 10000
 b_samples = torch.from_numpy(
     np.random.uniform(-1, 1, size=(num_data, num_ineq))
 ).float()
 
-# Split into train/val/test
 data_train = DictDataset({"b": b_samples[:8000]}, name="train")
 data_val   = DictDataset({"b": b_samples[8000:9000]}, name="val")
 data_test  = DictDataset({"b": b_samples[9000:]}, name="test")
@@ -230,21 +199,18 @@ loader_train = DataLoader(data_train, batch_size=64, shuffle=True,
 loader_val   = DataLoader(data_val, batch_size=64, shuffle=False,
                           collate_fn=data_val.collate_fn)
 
-# Train
 optimizer = torch.optim.AdamW(solver.problem.parameters(), lr=1e-3)
 solver.train(
     loader_train, loader_val, optimizer,
     epochs=200,      # max epochs
     patience=20,     # early stopping patience
-    warmup=20,       # warmup epochs before early stopping
+    warmup=20,       # warmup epochs before early stopping kicks in
     device="cuda",
 )
 ```
 
 
 ### Step 7: Predict
-
-Given new parameter values $b$, the trained solver predicts integer solutions via a forward pass (plus projection if configured). The input can be a batch of instances.
 
 ```python
 b_test = data_test.datadict["b"].to("cuda")
@@ -262,12 +228,14 @@ src/reins/                    # Core package
 ├── variable.py                  # VarType enum & variable() factory
 ├── blocks.py                    # MLPBnDrop (MLP with BatchNorm + Dropout)
 ├── solver.py                    # LearnableSolver wrapper
-├── rounding/                    # Integer rounding layers
-│   ├── functions.py             # Differentiable STE primitives
-│   ├── base.py                  # RoundingNode abstract base class
-│   ├── ste.py                   # STERounding, StochasticSTERounding
-│   ├── threshold.py             # DynamicThresholdRounding, StochasticDynamicThresholdRounding
-│   └── selection.py             # AdaptiveSelectionRounding, StochasticAdaptiveSelectionRounding
+├── node/                        # Node components
+│   ├── smap.py                  # SmapNode (solution mapping with auto-split)
+│   └── rounding/                # Integer rounding layers
+│       ├── functions.py         # Differentiable STE primitives
+│       ├── base.py              # RoundingNode abstract base class
+│       ├── ste.py               # STERounding, StochasticSTERounding
+│       ├── threshold.py         # DynamicThresholdRounding, StochasticDynamicThresholdRounding
+│       └── selection.py         # AdaptiveSelectionRounding, StochasticAdaptiveSelectionRounding
 ├── projection/                  # Feasibility projection
 │   └── gradient.py              # GradientProjection
 └── utils/

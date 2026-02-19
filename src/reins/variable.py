@@ -53,18 +53,21 @@ def _build_var_types(num_vars, integer_indices=None, binary_indices=None):
 
 def _resolve_var_types(num_vars, integer_indices, binary_indices, var_types):
     """Dispatch to explicit list or index-based construction."""
-    # Resolve types
     if var_types is not None:
-        if (num_vars is not None or
-                integer_indices is not None or
-                binary_indices is not None):
+        if integer_indices is not None or binary_indices is not None:
             raise ValueError(
                 "Cannot specify both var_types and indices-based parameters. "
-                "Choose one approach: either pass var_types list OR use indices."
+                "Choose one approach: either pass var_types OR use indices."
             )
+        # Single VarType → broadcast to num_vars
+        if isinstance(var_types, VarType):
+            if num_vars is None:
+                num_vars = 1
+            return [var_types] * num_vars
+        # List of VarTypes → use directly
         return list(var_types)
 
-    # If no explicit var_types, build from indices
+    # Build from indices
     if num_vars is None:
         raise ValueError(
             "num_vars is required when using integer_indices or binary_indices."
@@ -88,15 +91,8 @@ def _attach_metadata(var, types):
 
 
 def _attach_relaxed(var):
-    """Attach relaxed variable (key + "_rel") if discrete vars exist."""
-    # If there are discrete variables
-    has_discrete = len(var.integer_indices) > 0 or len(var.binary_indices) > 0
-    # Create new relaxed variable with "_rel" suffix
-    if has_discrete:
-        var.relaxed = nm.variable(var.key + "_rel")
-    # Relaxed version is itself
-    else:
-        var.relaxed = var
+    """Attach relaxed variable (key + "_rel") for all typed variables."""
+    var.relaxed = nm.variable(var.key + "_rel")
 
 
 def variable(key, num_vars=None,
@@ -115,30 +111,33 @@ def variable(key, num_vars=None,
         num_vars: Total number of variables.
         integer_indices: Indices of integer variables.
         binary_indices: Indices of binary variables.
-        var_types: Explicit VarType list (mutually exclusive with indices).
+        var_types: Single VarType (broadcast to all vars) or list of VarType.
+            Mutually exclusive with indices-based parameters.
 
     Returns:
         Neuromancer variable, with type attrs attached if type params given.
     """
+    # Validate key
+    if key.endswith("_rel"):
+        raise ValueError(
+            f"Variable key '{key}' cannot end with '_rel' "
+            f"(reserved for relaxed variables)."
+        )
+
     # Create base variable
     var = nm.variable(key)
 
     # No type information -> plain neuromancer variable
-    if num_vars is None and var_types is None:
-        if integer_indices is not None or binary_indices is not None:
-            raise ValueError(
-                "num_vars is required when using integer_indices or binary_indices."
-            )
+    if all(v is None for v in (num_vars, integer_indices,
+                                binary_indices, var_types)):
         return var
 
-    # Attach type metadata
-    types = _resolve_var_types(num_vars, 
-                               integer_indices, 
-                               binary_indices,
-                               var_types)
+    # Resolve and attach type metadata
+    types = _resolve_var_types(num_vars, integer_indices,
+                               binary_indices, var_types)
     _attach_metadata(var, types)
 
-    # Attach relaxed variable if discrete variables exist
+    # Attach relaxed variable
     _attach_relaxed(var)
 
     return var

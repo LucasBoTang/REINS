@@ -6,7 +6,7 @@ import pytest
 import torch
 from torch import nn
 
-from reins.rounding.functions import (
+from reins.node.rounding.functions import (
     DiffFloor,
     DiffBinarize,
     DiffGumbelBinarize,
@@ -384,10 +384,10 @@ class TestThresholdBinarize:
 
 
 class TestRoundingFunctionsExport:
-    """Test that functions are exported from reins.rounding."""
+    """Test that functions are exported from reins.node.rounding."""
 
     def test_import_from_rounding(self):
-        from reins.rounding import (
+        from reins.node.rounding import (
             DiffFloor,
             DiffBinarize,
             DiffGumbelBinarize,

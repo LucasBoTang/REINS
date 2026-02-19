@@ -2,8 +2,8 @@
 Straight-Through Estimator based rounding layers (deterministic and stochastic).
 """
 
-from reins.rounding.base import RoundingNode
-from reins.rounding.functions import DiffFloor, DiffBinarize, DiffGumbelBinarize
+from reins.node.rounding.base import RoundingNode
+from reins.node.rounding.functions import DiffFloor, DiffBinarize, DiffGumbelBinarize
 
 
 class STERounding(RoundingNode):

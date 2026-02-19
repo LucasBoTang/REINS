@@ -102,6 +102,18 @@ class TestVariableExplicitTypes:
         assert x.integer_indices == []
         assert x.binary_indices == []
 
+    def test_single_vartype_broadcast(self):
+        x = variable("x", num_vars=5, var_types=VarType.INTEGER)
+        assert x.num_vars == 5
+        assert x.var_types == [VarType.INTEGER] * 5
+        assert x.integer_indices == [0, 1, 2, 3, 4]
+
+    def test_single_vartype_default_num_vars(self):
+        x = variable("x", var_types=VarType.BINARY)
+        assert x.num_vars == 1
+        assert x.var_types == [VarType.BINARY]
+        assert x.binary_indices == [0]
+
 
 class TestVariableRelaxed:
     """Test auto-creation of relaxed variable."""
@@ -117,7 +129,8 @@ class TestVariableRelaxed:
 
     def test_relaxed_pure_continuous(self):
         x = variable("x", num_vars=3)
-        assert x.relaxed is x
+        assert x.relaxed.key == "x_rel"
+        assert x.relaxed is not x
 
     def test_relaxed_key_preserved(self):
         x = variable("x", num_vars=5, integer_indices=[0, 1, 2])
@@ -135,11 +148,6 @@ class TestVariableErrors:
     def test_binary_indices_without_num_vars(self):
         with pytest.raises(ValueError, match="num_vars is required"):
             variable("x", binary_indices=[0])
-
-    def test_var_types_with_num_vars_conflict(self):
-        with pytest.raises(ValueError, match="Cannot specify both"):
-            variable("x", num_vars=3,
-                     var_types=[VarType.CONTINUOUS] * 3)
 
     def test_var_types_with_indices_conflict(self):
         with pytest.raises(ValueError, match="Cannot specify both"):

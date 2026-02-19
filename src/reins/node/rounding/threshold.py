@@ -4,8 +4,8 @@ Dynamic threshold rounding layers (deterministic and stochastic).
 
 import torch
 
-from reins.rounding.base import RoundingNode
-from reins.rounding.functions import (
+from reins.node.rounding.base import RoundingNode
+from reins.node.rounding.functions import (
     DiffFloor, ThresholdBinarize, GumbelThresholdBinarize,
 )
 

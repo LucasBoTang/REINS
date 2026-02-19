@@ -15,7 +15,7 @@ from neuromancer.loss import PenaltyLoss
 
 from reins.solver import LearnableSolver
 from reins.projection.gradient import GradientProjection
-from reins.rounding.ste import STERounding
+from reins.node.rounding.ste import STERounding
 
 
 @pytest.fixture(autouse=True)

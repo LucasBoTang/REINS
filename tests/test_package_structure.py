@@ -11,8 +11,11 @@ class TestPackageImport:
     def test_import_src(self):
         import reins
 
+    def test_import_node_subpackage(self):
+        import reins.node
+
     def test_import_rounding_subpackage(self):
-        import reins.rounding
+        import reins.node.rounding
 
     def test_import_projection_subpackage(self):
         import reins.projection

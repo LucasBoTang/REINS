@@ -9,13 +9,13 @@ from torch import nn
 
 from reins.blocks import MLPBnDrop
 from neuromancer.system import Node
-from reins.rounding.base import RoundingNode
-from reins.rounding.ste import STERounding
-from reins.rounding.threshold import (
+from reins.node.rounding.base import RoundingNode
+from reins.node.rounding.ste import STERounding
+from reins.node.rounding.threshold import (
     DynamicThresholdRounding,
     StochasticDynamicThresholdRounding,
 )
-from reins.rounding.selection import (
+from reins.node.rounding.selection import (
     AdaptiveSelectionRounding,
     StochasticAdaptiveSelectionRounding,
 )
@@ -626,10 +626,10 @@ class TestStochasticAdaptiveSelectionRounding:
 # ── TestRoundingNodeExport ───────────────────────────────────────────
 
 class TestRoundingNodeExport:
-    """Test that rounding nodes are exported from reins.rounding."""
+    """Test that rounding nodes are exported from reins.node.rounding."""
 
     def test_import_from_rounding(self):
-        from reins.rounding import (
+        from reins.node.rounding import (
             RoundingNode,
             STERounding,
             DynamicThresholdRounding,
