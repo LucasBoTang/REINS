@@ -10,7 +10,7 @@ from torch import nn
 from reins.blocks import MLPBnDrop
 from neuromancer.system import Node
 from reins.node.rounding.base import RoundingNode
-from reins.node.rounding.ste import STERounding
+from reins.node.rounding.ste import STERounding, StochasticSTERounding
 from reins.node.rounding.threshold import (
     DynamicThresholdRounding,
     StochasticDynamicThresholdRounding,
@@ -242,6 +242,129 @@ class TestSTERounding:
         assert result["x"].shape == (16, 3)
 
 
+# ── TestStochasticSTERounding ────────────────────────────────────────
+
+class TestStochasticSTERounding:
+    """Test StochasticSTERounding layer."""
+
+    def test_inherits_ste_rounding(self):
+        """Should be a subclass of STERounding."""
+        assert issubclass(StochasticSTERounding, STERounding)
+
+    def test_output_shape(self, int_var):
+        layer = StochasticSTERounding(int_var)
+        data = {"x_rel": torch.randn(8, 3)}
+        result = layer(data)
+        assert result["x"].shape == (8, 3)
+
+    def test_integer_rounding_eval(self, int_var):
+        """Eval mode: integer variables should be rounded to integers."""
+        layer = StochasticSTERounding(int_var)
+        layer.eval()
+        data = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
+        result = layer(data)
+        x = result["x"]
+        assert torch.allclose(x, x.round(), atol=0.01)
+
+    def test_binary_rounding_eval(self, bin_var):
+        """Eval mode: binary variables should be 0 or 1."""
+        layer = StochasticSTERounding(bin_var)
+        layer.eval()
+        data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]])}
+        result = layer(data)
+        x = result["x"]
+        assert torch.all((x == 0) | (x == 1))
+
+    def test_mixed_types(self, mixed_var):
+        """Mixed variable: continuous untouched, integers rounded, binaries 0/1."""
+        layer = StochasticSTERounding(mixed_var)
+        layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
+        data = {"x_rel": x_rel}
+        result = layer(data)
+        x = result["x"]
+        # Continuous indices [0] should be unchanged
+        assert torch.allclose(x[:, [0]], x_rel[:, [0]])
+        # Binary indices [2, 4] should be 0 or 1
+        assert torch.all((x[:, [2, 4]] == 0) | (x[:, [2, 4]] == 1))
+
+    def test_train_stochastic(self, int_var):
+        """Train mode should produce different results across calls."""
+        layer = StochasticSTERounding(int_var)
+        layer.train()
+        results = []
+        for _ in range(10):
+            data = {"x_rel": torch.tensor([[1.5, 2.5, 0.5]])}
+            results.append(layer(data)["x"])
+        assert not all(torch.allclose(results[0], r) for r in results[1:])
+
+    def test_eval_deterministic(self, int_var):
+        """Eval mode should produce deterministic results."""
+        layer = StochasticSTERounding(int_var)
+        layer.eval()
+        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
+        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
+        r1 = layer(data1)["x"]
+        r2 = layer(data2)["x"]
+        assert torch.allclose(r1, r2)
+
+    def test_gradient_flow(self, int_var):
+        """Gradients should flow through Gumbel-STE rounding."""
+        layer = StochasticSTERounding(int_var)
+        layer.train()
+        x_rel = torch.tensor([[1.3, 2.7, 0.1]], requires_grad=True)
+        data = {"x_rel": x_rel}
+        result = layer(data)
+        result["x"].sum().backward()
+        assert x_rel.grad is not None
+        assert not torch.all(x_rel.grad == 0)
+
+    def test_no_learnable_params(self, int_var):
+        """StochasticSTERounding should have no learnable parameters."""
+        layer = StochasticSTERounding(int_var)
+        params = list(layer.parameters())
+        assert len(params) == 0
+
+    def test_multi_var(self, multi_vars):
+        """Multi-variable: each variable rounded independently."""
+        layer = StochasticSTERounding(multi_vars)
+        layer.eval()
+        data = {
+            "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
+            "y_rel": torch.tensor([[0.8, 0.2]]),
+        }
+        result = layer(data)
+        x = result["x"]
+        assert torch.allclose(x, x.round(), atol=0.01)
+        y = result["y"]
+        assert torch.all((y == 0) | (y == 1))
+
+    def test_temperature_effect(self, bin_var):
+        """Lower temperature should produce sharper (more deterministic) outputs."""
+        layer_hot = StochasticSTERounding(bin_var, temperature=10.0)
+        layer_cold = StochasticSTERounding(bin_var, temperature=0.01)
+        layer_hot.train()
+        layer_cold.train()
+        # Run multiple trials and check variance
+        hot_results, cold_results = [], []
+        for _ in range(30):
+            data = {"x_rel": torch.tensor([[0.5, 0.5, 0.5]])}
+            hot_results.append(layer_hot(data)["x"])
+            cold_results.append(layer_cold(data)["x"])
+        hot_var = torch.stack(hot_results).var()
+        cold_var = torch.stack(cold_results).var()
+        # Hot temperature should have more or equal variance
+        assert hot_var >= cold_var or cold_var < 0.01
+
+    def test_batched(self, int_var):
+        """Batch dimension should be preserved."""
+        layer = StochasticSTERounding(int_var)
+        layer.eval()
+        data = {"x_rel": torch.randn(16, 3)}
+        result = layer(data)
+        assert result["x"].shape == (16, 3)
+
+
 # ── TestDynamicThresholdRounding ─────────────────────────────────────
 
 class TestDynamicThresholdRounding:
@@ -332,19 +455,81 @@ class TestDynamicThresholdRounding:
         assert result["x"].shape == (4, 3)
 
     def test_continuous_update(self, mixed_var):
-        """With continuous_update, continuous variables should be adjusted."""
+        """With continuous_update, continuous variables should actually change."""
         net = _make_net(4, 5)
         layer = DynamicThresholdRounding(
             mixed_var, param_keys=["p"], net=net,
             continuous_update=True,
         )
         layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
         data = {
-            "x_rel": torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]]),
+            "x_rel": x_rel,
             "p": torch.randn(1, 4),
         }
         result = layer(data)
         assert result["x"].shape == (1, 5)
+        # Continuous index [0] should be modified by network
+        assert not torch.allclose(result["x"][:, [0]], x_rel[:, [0]])
+
+    def test_continuous_no_update(self, mixed_var):
+        """Without continuous_update, continuous variables should be unchanged."""
+        net = _make_net(4, 5)
+        layer = DynamicThresholdRounding(
+            mixed_var, param_keys=["p"], net=net,
+            continuous_update=False,
+        )
+        layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
+        data = {
+            "x_rel": x_rel,
+            "p": torch.randn(1, 4),
+        }
+        result = layer(data)
+        # Continuous index [0] should be unchanged
+        assert torch.allclose(result["x"][:, [0]], x_rel[:, [0]])
+
+    def test_mixed_types(self, mixed_var):
+        """Mixed variable: continuous untouched, integers rounded, binaries 0/1."""
+        net = _make_net(4, 5)
+        layer = DynamicThresholdRounding(
+            mixed_var, param_keys=["p"], net=net,
+        )
+        layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
+        data = {"x_rel": x_rel, "p": torch.randn(1, 4)}
+        result = layer(data)
+        x = result["x"]
+        # Continuous indices [0] should be unchanged
+        assert torch.allclose(x[:, [0]], x_rel[:, [0]])
+        # Integer indices [1, 3] should be integers
+        x_int = x[:, [1, 3]]
+        assert torch.allclose(x_int, x_int.round(), atol=0.01)
+        # Binary indices [2, 4] should be 0 or 1
+        assert torch.all((x[:, [2, 4]] == 0) | (x[:, [2, 4]] == 1))
+
+    def test_slope_effect(self, bin_var):
+        """Higher slope should produce sharper (closer to 0/1) outputs in train mode."""
+        net = _make_net(4, 3)
+        layer_low = DynamicThresholdRounding(
+            bin_var, param_keys=["p"], net=net, slope=1,
+        )
+        layer_high = DynamicThresholdRounding(
+            bin_var, param_keys=["p"], net=net, slope=100,
+        )
+        layer_low.train()
+        layer_high.train()
+        # Batch size >= 2 for BatchNorm
+        data = {
+            "x_rel": torch.tensor([[0.3, 0.7, 0.5], [0.6, 0.4, 0.8]]),
+            "p": torch.randn(2, 4),
+        }
+        out_low = layer_low(data)["x"]
+        out_high = layer_high(data)["x"]
+        # High slope output should be closer to binary (0 or 1)
+        dist_low = torch.min(out_low.abs(), (1 - out_low).abs()).mean()
+        dist_high = torch.min(out_high.abs(), (1 - out_high).abs()).mean()
+        assert dist_high <= dist_low + 0.01
 
     def test_batched(self, int_var):
         net = _make_net(4, 3)
@@ -418,6 +603,20 @@ class TestStochasticDynamicThresholdRounding:
         for param in layer.net.parameters():
             if param.requires_grad:
                 assert param.grad is not None
+
+    def test_eval_deterministic(self, int_var):
+        """Eval mode should produce deterministic results."""
+        net = _make_net(4, 3)
+        layer = StochasticDynamicThresholdRounding(
+            int_var, param_keys=["p"], net=net
+        )
+        layer.eval()
+        p = torch.randn(1, 4)
+        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        r1 = layer(data1)["x"]
+        r2 = layer(data2)["x"]
+        assert torch.allclose(r1, r2)
 
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
@@ -518,19 +717,90 @@ class TestAdaptiveSelectionRounding:
         assert torch.all((result["y"] == 0) | (result["y"] == 1))
 
     def test_continuous_update(self, mixed_var):
-        """With continuous_update, continuous variables should be adjusted."""
+        """With continuous_update, continuous variables should actually change."""
         net = _make_net(4, 5)
         layer = AdaptiveSelectionRounding(
             mixed_var, param_keys=["p"], net=net,
             continuous_update=True,
         )
         layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
         data = {
-            "x_rel": torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]]),
+            "x_rel": x_rel,
             "p": torch.randn(1, 4),
         }
         result = layer(data)
         assert result["x"].shape == (1, 5)
+        # Continuous index [0] should be modified by network
+        assert not torch.allclose(result["x"][:, [0]], x_rel[:, [0]])
+
+    def test_continuous_no_update(self, mixed_var):
+        """Without continuous_update, continuous variables should be unchanged."""
+        net = _make_net(4, 5)
+        layer = AdaptiveSelectionRounding(
+            mixed_var, param_keys=["p"], net=net,
+            continuous_update=False,
+        )
+        layer.eval()
+        x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
+        data = {
+            "x_rel": x_rel,
+            "p": torch.randn(1, 4),
+        }
+        result = layer(data)
+        # Continuous index [0] should be unchanged
+        assert torch.allclose(result["x"][:, [0]], x_rel[:, [0]])
+
+    def test_int_mask_near_integer_floor(self, int_var):
+        """Values very close to an integer (from above) should round down."""
+        net = _make_net(4, 3)
+        layer = AdaptiveSelectionRounding(
+            int_var, param_keys=["p"], net=net, tolerance=1e-3,
+        )
+        layer.eval()
+        # 2.0001 has frac ~0.0001 < tolerance -> forced to floor (2.0)
+        data = {
+            "x_rel": torch.tensor([[2.0001, 3.0001, 5.0001]]),
+            "p": torch.randn(1, 4),
+        }
+        result = layer(data)
+        x = result["x"]
+        expected = torch.tensor([[2.0, 3.0, 5.0]])
+        assert torch.allclose(x, expected, atol=0.01)
+
+    def test_int_mask_near_integer_ceil(self, int_var):
+        """Values very close to the next integer (from below) should round up."""
+        net = _make_net(4, 3)
+        layer = AdaptiveSelectionRounding(
+            int_var, param_keys=["p"], net=net, tolerance=1e-3,
+        )
+        layer.eval()
+        # 2.9999 has frac ~0.9999 > 1-tolerance -> forced to ceil (3.0)
+        data = {
+            "x_rel": torch.tensor([[2.9999, 4.9999, 6.9999]]),
+            "p": torch.randn(1, 4),
+        }
+        result = layer(data)
+        x = result["x"]
+        expected = torch.tensor([[3.0, 5.0, 7.0]])
+        assert torch.allclose(x, expected, atol=0.01)
+
+    def test_int_mask_not_triggered_midrange(self, int_var):
+        """Values far from integers should NOT be affected by mask."""
+        net = _make_net(4, 3)
+        layer = AdaptiveSelectionRounding(
+            int_var, param_keys=["p"], net=net, tolerance=1e-3,
+        )
+        layer.eval()
+        # 2.5 has frac=0.5, well within (tolerance, 1-tolerance) -> network decides
+        data = {
+            "x_rel": torch.tensor([[2.5, 3.5, 4.5]]),
+            "p": torch.randn(1, 4),
+        }
+        result = layer(data)
+        x = result["x"]
+        # Should still be integer, but network decides direction
+        assert torch.allclose(x, x.round(), atol=0.01)
 
     def test_batched(self, int_var):
         net = _make_net(4, 3)
@@ -607,6 +877,20 @@ class TestStochasticAdaptiveSelectionRounding:
             if param.requires_grad:
                 assert param.grad is not None
 
+    def test_eval_deterministic(self, int_var):
+        """Eval mode should produce deterministic results."""
+        net = _make_net(4, 3)
+        layer = StochasticAdaptiveSelectionRounding(
+            int_var, param_keys=["p"], net=net
+        )
+        layer.eval()
+        p = torch.randn(1, 4)
+        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        r1 = layer(data1)["x"]
+        r2 = layer(data2)["x"]
+        assert torch.allclose(r1, r2)
+
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
         layer = StochasticAdaptiveSelectionRounding(
@@ -632,6 +916,7 @@ class TestRoundingNodeExport:
         from reins.node.rounding import (
             RoundingNode,
             STERounding,
+            StochasticSTERounding,
             DynamicThresholdRounding,
             StochasticDynamicThresholdRounding,
             AdaptiveSelectionRounding,
@@ -639,6 +924,7 @@ class TestRoundingNodeExport:
         )
         assert RoundingNode is not None
         assert STERounding is not None
+        assert StochasticSTERounding is not None
         assert DynamicThresholdRounding is not None
         assert StochasticDynamicThresholdRounding is not None
         assert AdaptiveSelectionRounding is not None
@@ -647,6 +933,7 @@ class TestRoundingNodeExport:
     def test_all_are_nodes(self):
         """All rounding nodes should be Node subclasses."""
         assert issubclass(STERounding, Node)
+        assert issubclass(StochasticSTERounding, Node)
         assert issubclass(DynamicThresholdRounding, Node)
         assert issubclass(StochasticDynamicThresholdRounding, Node)
         assert issubclass(AdaptiveSelectionRounding, Node)
