@@ -223,7 +223,7 @@ src/reins/                    # Core package
 ├── blocks.py                    # MLPBnDrop (MLP with BatchNorm + Dropout)
 ├── solver.py                    # LearnableSolver wrapper
 ├── node/                        # Node components
-│   ├── relaxation.py             # RelaxationNode (relaxation solution)
+│   ├── relaxation.py            # RelaxationNode (relaxation solution)
 │   └── rounding/                # Integer rounding layers
 │       ├── functions.py         # Differentiable STE primitives
 │       ├── base.py              # RoundingNode abstract base class
