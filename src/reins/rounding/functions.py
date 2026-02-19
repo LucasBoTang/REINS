@@ -17,10 +17,8 @@ class DiffFloor(nn.Module):
         super().__init__()
 
     def forward(self, x):
-        # Hard floor
-        x_floor = torch.floor(x).float()
-        # STE: Attach gradient from x to non-differentiable floor
-        return x_floor + (x - x.detach())
+        # STE: Attach gradient from x
+        return x + (torch.floor(x) - x).detach()
 
 
 class DiffBinarize(nn.Module):

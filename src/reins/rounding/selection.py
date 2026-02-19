@@ -58,7 +58,9 @@ class AdaptiveSelectionRounding(RoundingNode):
         offset = 0
         for var in self.vars:
             n = var.num_vars
+            # Start with relaxed variable values
             x = data[var.relaxed.key].clone()
+            # Slice net output for this variable
             h_var = hidden[:, offset:offset + n]
 
             # Optionally update continuous variables via network adjustment
@@ -67,13 +69,15 @@ class AdaptiveSelectionRounding(RoundingNode):
 
             # Round integer variables: floor(x) + binarize(h)
             if var.integer_indices:
+                # Slice net output for integer variables
                 x_int = x[:, var.integer_indices]
                 # Differentiable floor
                 x_floor = self.floor(x_int)
                 # Network selects round up or down
                 binary = self.binarize(h_var[:, var.integer_indices])
-                # Mask if already integer
+                # Mask rounding for values already close to an integer
                 binary = self._int_mask(binary, x_int, x_floor)
+                # Combine floor and binary to get final rounded integer variable
                 x[:, var.integer_indices] = x_floor + binary
 
             # Round binary variables: binarize(h)

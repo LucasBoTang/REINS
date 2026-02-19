@@ -61,9 +61,11 @@ class DynamicThresholdRounding(RoundingNode):
         offset = 0
         for var in self.vars:
             n = var.num_vars
+            # Start with relaxed variable values
             x = data[var.relaxed.key].clone()
             # Slice network output for this variable
             h_var = hidden[:, offset:offset + n]
+            # Slice network output for thresholds
             thresh_var = thresholds[:, offset:offset + n]
 
             # Optionally update continuous variables via network adjustment
@@ -72,11 +74,17 @@ class DynamicThresholdRounding(RoundingNode):
 
             # Round integer variables: floor(x) + threshold_binarize(frac, thresh)
             if var.integer_indices:
+                # Slice network output for integer variables
+                x_int = x[:, var.integer_indices]
+                # Differentiable floor
                 x_floor = self.floor(x[:, var.integer_indices])
                 # Compute fractional part without gradient
                 x_frac = (x[:, var.integer_indices] - x_floor).detach()
+                # Network predicts threshold for rounding
                 thresh = thresh_var[:, var.integer_indices]
+                # Threshold decides whether to round up or down
                 binary = self.threshold_binarize(x_frac, thresh)
+                # Combine floor and binary to get final rounded integer variable
                 x[:, var.integer_indices] = x_floor + binary
 
             # Round binary variables: threshold_binarize(x, thresh)
