@@ -269,7 +269,7 @@ def run_AS(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_blocks + 1, outsize=2 * num_blocks,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["p", "a"], [x.relaxed.key], name="smap")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=3 * num_blocks + 1, outsize=2 * num_blocks,
@@ -318,7 +318,7 @@ def run_DT(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_blocks + 1, outsize=2 * num_blocks,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["p", "a"], [x.relaxed.key], name="smap")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=3 * num_blocks + 1, outsize=2 * num_blocks,
@@ -366,7 +366,7 @@ def run_RS(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_blocks + 1, outsize=2 * num_blocks,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["p", "a"], [x.relaxed.key], name="smap")
     # Create rounding operator
     rnd = StochasticSTERounding(vars=x)
@@ -409,7 +409,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Create solution mapping network (no rounding layer)
     smap_func = MLPBnDrop(insize=num_blocks + 1, outsize=2 * num_blocks,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["p", "a"], ["x"], name="smap")
     # Build loss
     loss = build_loss(steepness, num_blocks, penalty_weight, device="cuda")
