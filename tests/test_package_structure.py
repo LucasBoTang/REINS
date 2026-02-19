@@ -34,16 +34,6 @@ class TestNeuromancerReExports:
         from neuromancer.trainer import Trainer as Trainer_orig
         assert Trainer is Trainer_orig
 
-    def test_objective(self):
-        from reins import Objective
-        from neuromancer.constraint import Objective as Obj_orig
-        assert Objective is Obj_orig
-
-    def test_constraint(self):
-        from reins import Constraint
-        from neuromancer.constraint import Constraint as Con_orig
-        assert Constraint is Con_orig
-
     def test_penalty_loss(self):
         from reins import PenaltyLoss
         from neuromancer.loss import PenaltyLoss as PL_orig
@@ -58,7 +48,7 @@ class TestNeuromancerReExports:
         import reins
         expected = [
             "DictDataset", "Trainer",
-            "Objective", "Constraint", "PenaltyLoss", "Problem",
+            "PenaltyLoss", "Problem",
             "MLPBnDrop", "VarType", "TypeVariable", "Variable",
             "LearnableSolver",
         ]

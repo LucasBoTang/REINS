@@ -4,7 +4,63 @@ Variable type management and unified variable creation for REINS.
 
 from enum import Enum
 
-from neuromancer.constraint import Variable as _NMVariable
+import torch
+from neuromancer.constraint import (
+    Constraint as _NMConstraint,
+    Variable as _NMVariable,
+    variable as _nm_variable,
+    Eq, LT, GT
+)
+
+
+class Constraint(_NMConstraint):
+    """Constraint that recognises Variable subclasses (isinstance check)."""
+
+    def __init__(self, left, right, comparator, weight=1.0, name=None):
+        # Skip type checks in neuromancer Constraint
+        super(_NMConstraint, self).__init__()
+        
+        # Convert left to _NMVariable
+        if not isinstance(left, _NMVariable):
+            if isinstance(left, (int, float, complex, bool)):
+                display_name = str(left)
+            else:
+                display_name = str(id(left))
+            if not isinstance(left, torch.Tensor):
+                left = torch.tensor(left)
+            left = _nm_variable(left, display_name=display_name)
+
+        # Convert right to _NMVariable
+        if not isinstance(right, _NMVariable):
+            if isinstance(right, (int, float, complex, bool)):
+                display_name = str(right)
+            else:
+                display_name = str(id(right))
+            if not isinstance(right, torch.Tensor):
+                right = torch.tensor(right)
+            right = _nm_variable(right, display_name=display_name)
+
+        # Set name and keys
+        if name is None:
+            name = f'{left.display_name} {comparator} {right.display_name}'
+        self.key = f'{left.key}_{comparator}_{right.key}'
+        input_keys = left.keys + right.keys
+        output_keys = [self.key, f'{self.key}_value', f'{self.key}_violation']
+        self.input_keys, self.output_keys, self.name = input_keys, output_keys, name
+        self.left = left
+        self.right = right
+        self.comparator = comparator
+        self.weight = weight
+        
+    def __xor__(self, norm):
+        comparator = type(self.comparator)(norm=norm)
+        return Constraint(self.left, self.right, comparator, weight=self.weight, name=self.name)
+
+    def __mul__(self, weight):
+        return Constraint(self.left, self.right, self.comparator, weight=self.weight*weight, name=self.name)
+
+    def __rmul__(self, weight):
+        return Constraint(self.left, self.right, self.comparator, weight=self.weight*weight, name=self.name)
 
 
 class Variable(_NMVariable):
@@ -20,6 +76,24 @@ class Variable(_NMVariable):
 
     def __init__(self, key):
         super().__init__(key=key)
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other):
+        return Constraint(self, other, Eq())
+
+    def __lt__(self, other):
+        return Constraint(self, other, LT())
+
+    def __le__(self, other):
+        return Constraint(self, other, LT())
+
+    def __gt__(self, other):
+        return Constraint(self, other, GT())
+
+    def __ge__(self, other):
+        return Constraint(self, other, GT())
 
 
 class VarType(Enum):

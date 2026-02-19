@@ -4,7 +4,6 @@ reins: Neuromancer extension for Mixed-Integer Nonlinear Programming.
 
 # ---- Re-exports from neuromancer ----
 from neuromancer.dataset import DictDataset
-from neuromancer.constraint import Objective, Constraint
 from neuromancer.loss import PenaltyLoss
 from neuromancer.problem import Problem
 from neuromancer.trainer import Trainer
@@ -17,9 +16,9 @@ from reins.solver import LearnableSolver
 __all__ = [
     # neuromancer re-exports
     "DictDataset", "Trainer",
-    "Variable", "Objective", "Constraint", "PenaltyLoss", "Problem",
+    "PenaltyLoss", "Problem",
     # reins modules
     "MLPBnDrop",
-    "VarType", "TypeVariable",
+    "Variable", "VarType", "TypeVariable",
     "LearnableSolver",
 ]

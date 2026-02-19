@@ -6,14 +6,13 @@ import pytest
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from types import SimpleNamespace
-
 import neuromancer as nm
 from neuromancer.system import Node
 from neuromancer.dataset import DictDataset
 from neuromancer.loss import PenaltyLoss
 
 from reins.solver import LearnableSolver
+from reins.variable import TypeVariable
 from reins.projection.gradient import GradientProjection
 from reins.node.rounding.ste import STERounding
 
@@ -27,21 +26,11 @@ def seed():
 # ---- Helpers ----
 
 def _make_var(key, num_vars, integer_indices=None, binary_indices=None):
-    """Create a mock variable with type metadata for testing."""
-    integer_indices = integer_indices or []
-    binary_indices = binary_indices or []
-    continuous_indices = [
-        i for i in range(num_vars)
-        if i not in integer_indices and i not in binary_indices
-    ]
-    relaxed = SimpleNamespace(key=key + "_rel")
-    return SimpleNamespace(
-        key=key,
-        relaxed=relaxed,
-        num_vars=num_vars,
+    """Create a TypeVariable for testing."""
+    return TypeVariable(
+        key, num_vars=num_vars,
         integer_indices=integer_indices,
         binary_indices=binary_indices,
-        continuous_indices=continuous_indices,
     )
 
 
