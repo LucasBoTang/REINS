@@ -48,7 +48,6 @@ class GradientProjection:
         # Clone and enable grad for all target variables
         xs = {k: data[k].clone().requires_grad_(True) for k in self.target_keys}
         batch_size = next(iter(xs.values())).shape[0]
-        device = next(iter(xs.values())).device
         d = 1.0
 
         # Build temp data once, update in-place each iteration

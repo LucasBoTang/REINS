@@ -15,8 +15,7 @@ from reins.solver import LearnableSolver
 
 __all__ = [
     # neuromancer re-exports
-    "DictDataset", "Trainer",
-     "Problem",
+    "DictDataset", "Trainer", "Problem",
     # reins modules
     "MLPBnDrop",
     "Variable", "VarType", "TypeVariable",
