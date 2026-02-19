@@ -4,13 +4,11 @@ Adaptive selection rounding layers (deterministic and stochastic).
 
 import torch
 
-from reins.node.rounding.base import RoundingNode
-from reins.node.rounding.functions import (
-    DiffFloor, DiffBinarize, DiffGumbelBinarize,
-)
+from reins.node.rounding.base import LearnableRoundingLayer
+from reins.node.rounding.functions import DiffBinarize, DiffGumbelBinarize
 
 
-class AdaptiveSelectionRounding(RoundingNode):
+class AdaptiveSelectionRounding(LearnableRoundingLayer):
     """
     Adaptive selection rounding with network-adjusted variables.
 
@@ -22,74 +20,24 @@ class AdaptiveSelectionRounding(RoundingNode):
         param_keys: List of parameter keys to read from data dict.
         net: Network mapping [params, vars] to per-variable selection.
         continuous_update: Whether to update continuous variables (default: False).
+        tolerance: Tolerance for near-integer masking (default: 1e-3).
         name: Module name.
     """
 
     def __init__(self, vars, param_keys, net,
                  continuous_update=False, tolerance=1e-3,
                  name="adaptive_selection_rounding"):
-        super().__init__(vars, name)
-        self.param_keys = param_keys
-        self.continuous_update = continuous_update
-        self.tolerance = tolerance
-
-        # Extend input keys to include parameter keys
-        self.input_keys = list(param_keys) + self.input_keys
-
-        # Network: [params, vars] -> per-variable selection
-        self.net = net
-
-        # Differentiable floor via STE
-        self.floor = DiffFloor()
+        super().__init__(vars, param_keys, net, continuous_update, name)
         # Deterministic STE binarization
         self.binarize = DiffBinarize()
+        self.tolerance = tolerance
 
-    def forward(self, data):
-        # Network input: [params, vars]
-        features = torch.cat(
-            [data[k] for k in self.param_keys]
-            + [data[v.relaxed.key] for v in self.vars],
-            dim=-1,
-        )
-        hidden = self.net(features)
+    def _round_integer(self, x_int, x_floor, h_int):
+        binary = self.binarize(h_int)
+        return self._int_mask(binary, x_int, x_floor)
 
-        # Round per variable using offset tracking
-        output = {}
-        offset = 0
-        for var in self.vars:
-            n = var.num_vars
-            # Start with relaxed variable values
-            x = data[var.relaxed.key].clone()
-            # Slice net output for this variable
-            h_var = hidden[:, offset:offset + n]
-
-            # Optionally update continuous variables via network adjustment
-            if self.continuous_update and var.continuous_indices:
-                x[:, var.continuous_indices] += h_var[:, var.continuous_indices]
-
-            # Round integer variables: floor(x) + binarize(h)
-            if var.integer_indices:
-                # Slice net output for integer variables
-                x_int = x[:, var.integer_indices]
-                # Differentiable floor
-                x_floor = self.floor(x_int)
-                # Network selects round up or down
-                binary = self.binarize(h_var[:, var.integer_indices])
-                # Mask rounding for values already close to an integer
-                binary = self._int_mask(binary, x_int, x_floor)
-                # Combine floor and binary to get final rounded integer variable
-                x[:, var.integer_indices] = x_floor + binary
-
-            # Round binary variables: binarize(h)
-            if var.binary_indices:
-                x[:, var.binary_indices] = self.binarize(
-                    h_var[:, var.binary_indices]
-                )
-
-            # Store rounded result
-            output[var.key] = x
-            offset += n
-        return output
+    def _round_binary(self, x_bin, h_bin):
+        return self.binarize(h_bin)
 
     def _int_mask(self, binary, x, x_floor):
         """Mask rounding for values already close to an integer."""

@@ -914,7 +914,6 @@ class TestRoundingNodeExport:
 
     def test_import_from_rounding(self):
         from reins.node.rounding import (
-            RoundingNode,
             STERounding,
             StochasticSTERounding,
             DynamicThresholdRounding,
@@ -922,13 +921,18 @@ class TestRoundingNodeExport:
             AdaptiveSelectionRounding,
             StochasticAdaptiveSelectionRounding,
         )
-        assert RoundingNode is not None
         assert STERounding is not None
         assert StochasticSTERounding is not None
         assert DynamicThresholdRounding is not None
         assert StochasticDynamicThresholdRounding is not None
         assert AdaptiveSelectionRounding is not None
         assert StochasticAdaptiveSelectionRounding is not None
+
+    def test_base_classes_internal(self):
+        """Base classes should be importable from base module, not package."""
+        from reins.node.rounding.base import RoundingNode, LearnableRoundingLayer
+        assert RoundingNode is not None
+        assert LearnableRoundingLayer is not None
 
     def test_all_are_nodes(self):
         """All rounding nodes should be Node subclasses."""

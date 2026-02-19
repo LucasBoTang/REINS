@@ -4,13 +4,11 @@ Dynamic threshold rounding layers (deterministic and stochastic).
 
 import torch
 
-from reins.node.rounding.base import RoundingNode
-from reins.node.rounding.functions import (
-    DiffFloor, ThresholdBinarize, GumbelThresholdBinarize,
-)
+from reins.node.rounding.base import LearnableRoundingLayer
+from reins.node.rounding.functions import ThresholdBinarize, GumbelThresholdBinarize
 
 
-class DynamicThresholdRounding(RoundingNode):
+class DynamicThresholdRounding(LearnableRoundingLayer):
     """
     Dynamic threshold rounding with MLP-predicted thresholds.
 
@@ -29,74 +27,18 @@ class DynamicThresholdRounding(RoundingNode):
     def __init__(self, vars, param_keys, net,
                  continuous_update=False, slope=10,
                  name="dynamic_threshold_rounding"):
-        super().__init__(vars, name)
-        self.param_keys = param_keys
-        self.continuous_update = continuous_update
-
-        # Extend input keys to include parameter keys
-        self.input_keys = list(param_keys) + self.input_keys
-
-        # Network: [params, vars] -> per-variable thresholds
-        self.net = net
-
-        # Differentiable floor via STE
-        self.floor = DiffFloor()
+        super().__init__(vars, param_keys, net, continuous_update, name)
         # Sigmoid-smoothed threshold binarization
         self.threshold_binarize = ThresholdBinarize(slope=slope)
 
-    def forward(self, data):
-        # Network input: [params, vars]
-        features = torch.cat(
-            [data[k] for k in self.param_keys]
-            + [data[v.relaxed.key] for v in self.vars],
-            dim=-1,
-        )
+    def _round_integer(self, x_int, x_floor, h_int):
+        thresh = torch.sigmoid(h_int)
+        x_frac = (x_int - x_floor).detach()
+        return self.threshold_binarize(x_frac, thresh)
 
-        # Predict raw outputs and map to [0, 1] thresholds
-        hidden = self.net(features)
-        thresholds = torch.sigmoid(hidden)
-
-        # Split and round per variable using offset tracking
-        output = {}
-        offset = 0
-        for var in self.vars:
-            n = var.num_vars
-            # Start with relaxed variable values
-            x = data[var.relaxed.key].clone()
-            # Slice network output for this variable
-            h_var = hidden[:, offset:offset + n]
-            # Slice network output for thresholds
-            thresh_var = thresholds[:, offset:offset + n]
-
-            # Optionally update continuous variables via network adjustment
-            if self.continuous_update and var.continuous_indices:
-                x[:, var.continuous_indices] += h_var[:, var.continuous_indices]
-
-            # Round integer variables: floor(x) + threshold_binarize(frac, thresh)
-            if var.integer_indices:
-                x_int = x[:, var.integer_indices]
-                # Differentiable floor
-                x_floor = self.floor(x_int)
-                # Compute fractional part without gradient
-                x_frac = (x_int - x_floor).detach()
-                # Network predicts threshold for rounding
-                thresh = thresh_var[:, var.integer_indices]
-                # Threshold decides whether to round up or down
-                binary = self.threshold_binarize(x_frac, thresh)
-                # Combine floor and binary to get final rounded integer variable
-                x[:, var.integer_indices] = x_floor + binary
-
-            # Round binary variables: threshold_binarize(x, thresh)
-            if var.binary_indices:
-                thresh = thresh_var[:, var.binary_indices]
-                x[:, var.binary_indices] = self.threshold_binarize(
-                    x[:, var.binary_indices], thresh
-                )
-
-            # Store rounded result
-            output[var.key] = x
-            offset += n
-        return output
+    def _round_binary(self, x_bin, h_bin):
+        thresh = torch.sigmoid(h_bin)
+        return self.threshold_binarize(x_bin, thresh)
 
 
 class StochasticDynamicThresholdRounding(DynamicThresholdRounding):
