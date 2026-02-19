@@ -86,18 +86,13 @@ class TestDiffBinarize:
         result = binarize(x)
         assert torch.all((result == 0) | (result == 1))
 
-    def test_gradient_legacy_behavior(self):
-        """Legacy gradient: zeroed where |x| < 1, passed where |x| >= 1.
-
-        Note: This is the intentionally preserved legacy behavior.
-        """
+    def test_gradient_passthrough(self):
+        """Identity STE: gradient should pass through unchanged."""
         binarize = DiffBinarize()
         x = torch.tensor([-1.5, -0.5, 0.0, 0.5, 1.5], requires_grad=True)
         y = binarize(x)
         y.backward(torch.ones_like(y))
-        # |x| < 1 -> grad zeroed: indices 1,2,3
-        # |x| >= 1 -> grad passed: indices 0,4
-        expected_grad = torch.tensor([1.0, 0.0, 0.0, 0.0, 1.0])
+        expected_grad = torch.ones(5)
         assert torch.allclose(x.grad, expected_grad)
 
     def test_clamping(self):

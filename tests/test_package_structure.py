@@ -24,11 +24,6 @@ class TestPackageImport:
 class TestNeuromancerReExports:
     """Test that neuromancer components are re-exported correctly."""
 
-    def test_mlp(self):
-        from neuround import MLP
-        from neuromancer.modules.blocks import MLP as MLP_orig
-        assert MLP is MLP_orig
-
     def test_node(self):
         from neuround import Node
         from neuromancer.system import Node as Node_orig
@@ -67,8 +62,10 @@ class TestNeuromancerReExports:
     def test_all_exports_listed(self):
         import neuround
         expected = [
-            "MLP", "Node", "DictDataset", "Trainer",
+            "Node", "DictDataset", "Trainer",
             "Objective", "Constraint", "PenaltyLoss", "Problem",
+            "MLPBnDrop", "VarType", "variable",
+            "GradientProjection", "LearnableSolver",
         ]
         for name in expected:
             assert name in neuround.__all__, f"{name} missing from __all__"
