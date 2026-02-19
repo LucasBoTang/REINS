@@ -1,4 +1,4 @@
-# Neuround: A Learning-to-Optimize (L2O) framework for Mixed-Integer Nonlinear Programming (MINLP)
+# REINS: Relaxation-Enforced Integer Neural Neighbourhood Search for Parametric MINLP with Feasibility Guarantees
 
 ![Framework](img/pipeline.png)
 
