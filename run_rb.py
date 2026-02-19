@@ -28,7 +28,7 @@ parser.add_argument("--size",
                     help="problem size")
 parser.add_argument("--penalty",
                     type=float,
-                    default=1000,
+                    default=1,
                     help="penalty weight")
 parser.add_argument("--project",
                     action="store_true",
