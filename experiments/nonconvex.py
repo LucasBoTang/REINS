@@ -257,7 +257,7 @@ def run_AS(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["b", "d"], [x.relaxed.key], name="smap")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=num_ineq * 2 + num_var, outsize=num_var,
@@ -305,7 +305,7 @@ def run_DT(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["b", "d"], [x.relaxed.key], name="smap")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=num_ineq * 2 + num_var, outsize=num_var,
@@ -352,7 +352,7 @@ def run_RS(loader_train, loader_test, loader_val, config):
     # Create solution mapping network
     smap_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["b", "d"], [x.relaxed.key], name="smap")
     # Create rounding operator
     rnd = StochasticSTERounding(vars=x)
@@ -395,7 +395,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Create solution mapping network (no rounding layer)
     smap_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
-                          nonlin=nn.ReLU, dropout=0, bnorm=False)
+                          nonlin=nn.ReLU)
     smap = Node(smap_func, ["b", "d"], ["x"], name="smap")
     # Build loss
     loss = build_loss(num_var, num_ineq, penalty_weight, device="cuda")
