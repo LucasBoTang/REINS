@@ -13,9 +13,9 @@ from neuromancer.system import Node
 from neuromancer.dataset import DictDataset
 from neuromancer.loss import PenaltyLoss
 
-from neuround.solver import LearnableSolver
-from neuround.projection.gradient import GradientProjection
-from neuround.rounding.ste import STERounding
+from reins.solver import LearnableSolver
+from reins.projection.gradient import GradientProjection
+from reins.rounding.ste import STERounding
 
 
 @pytest.fixture(autouse=True)
@@ -483,11 +483,11 @@ class TestLearnableSolverExport:
     """Tests for LearnableSolver exports."""
 
     def test_import_from_package(self):
-        """Should be importable from neuround."""
-        from neuround import LearnableSolver as LS
+        """Should be importable from reins."""
+        from reins import LearnableSolver as LS
         assert LS is LearnableSolver
 
     def test_in_all(self):
         """Should be listed in __all__."""
-        import neuround
-        assert "LearnableSolver" in neuround.__all__
+        import reins
+        assert "LearnableSolver" in reins.__all__

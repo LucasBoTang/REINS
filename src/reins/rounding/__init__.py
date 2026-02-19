@@ -3,7 +3,7 @@ Rounding nodes for mixed-integer optimization.
 """
 
 # STE functions
-from neuround.rounding.functions import (
+from reins.rounding.functions import (
     DiffFloor,
     DiffBinarize,
     DiffGumbelBinarize,
@@ -12,13 +12,13 @@ from neuround.rounding.functions import (
 )
 
 # Rounding nodes
-from neuround.rounding.base import RoundingNode
-from neuround.rounding.ste import STERounding, StochasticSTERounding
-from neuround.rounding.threshold import (
+from reins.rounding.base import RoundingNode
+from reins.rounding.ste import STERounding, StochasticSTERounding
+from reins.rounding.threshold import (
     DynamicThresholdRounding,
     StochasticDynamicThresholdRounding,
 )
-from neuround.rounding.selection import (
+from reins.rounding.selection import (
     AdaptiveSelectionRounding,
     StochasticAdaptiveSelectionRounding,
 )

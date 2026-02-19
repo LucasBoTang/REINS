@@ -2,7 +2,7 @@
 # coding: utf-8
 """
 Experiment pipeline for Integer Nonconvex Problem (INC)
-using the neuround API.
+using the reins API.
 
 Legacy mapping:
   - nmNonconvex (custom penaltyLoss)   → PenaltyLoss via operator overloading
@@ -20,11 +20,11 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from neuround import (
+from reins import (
     variable, PenaltyLoss, Node, MLPBnDrop, GradientProjection,
     LearnableSolver,
 )
-from neuround.rounding import (
+from reins.rounding import (
     StochasticSTERounding,
     DynamicThresholdRounding,
     StochasticAdaptiveSelectionRounding,
@@ -385,7 +385,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Print experiment info
     print(config)
     print(f"LR in NC for size {config.size}.")
-    from neuround import Problem, Trainer
+    from reins import Problem, Trainer
     num_var = config.size
     num_ineq = config.size
     hsize = config.hsize

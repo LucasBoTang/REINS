@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from neuround.blocks import MLPBnDrop
+from reins.blocks import MLPBnDrop
 
 
 class TestMLPBnDrop:
@@ -93,7 +93,7 @@ class TestMLPBnDrop:
         assert torch.equal(out_eval_1, out_eval_2)
 
     def test_export(self):
-        import neuround
-        assert hasattr(neuround, "MLPBnDrop")
-        assert "MLPBnDrop" in neuround.__all__
-        assert neuround.MLPBnDrop is MLPBnDrop
+        import reins
+        assert hasattr(reins, "MLPBnDrop")
+        assert "MLPBnDrop" in reins.__all__
+        assert reins.MLPBnDrop is MLPBnDrop

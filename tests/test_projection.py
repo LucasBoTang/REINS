@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from types import SimpleNamespace
 
-from neuround.projection.gradient import GradientProjection
+from reins.projection.gradient import GradientProjection
 
 
 @pytest.fixture(autouse=True)

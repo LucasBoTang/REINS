@@ -6,7 +6,7 @@ import torch
 
 from neuromancer.problem import Problem
 
-from neuround.projection.gradient import GradientProjection
+from reins.projection.gradient import GradientProjection
 
 
 class LearnableSolver:

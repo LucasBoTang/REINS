@@ -8,7 +8,7 @@ import random
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from neuround import DictDataset
+from reins import DictDataset
 import experiments
 
 # random seed
@@ -57,7 +57,7 @@ d_samples = torch.from_numpy(np.random.uniform(-0.1, 0.1, size=(num_data, num_in
 
 # data split
 from sklearn.model_selection import train_test_split
-from neuround import DictDataset
+from reins import DictDataset
 ind = list(range(num_data))
 ind_train, ind_test = train_test_split(ind, test_size=test_size, random_state=42, shuffle=True)
 ind_train, ind_val = train_test_split(ind_train, test_size=val_size, random_state=42, shuffle=True)

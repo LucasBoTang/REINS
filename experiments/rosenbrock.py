@@ -2,7 +2,7 @@
 # coding: utf-8
 """
 Experiment pipeline for Mixed-Integer Rosenbrock (MIRB)
-using the neuround API.
+using the reins API.
 
 This problem has mixed variable types:
   - x[2i]   (even indices) → CONTINUOUS
@@ -24,11 +24,11 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from neuround import (
+from reins import (
     variable, PenaltyLoss, Node, MLPBnDrop, GradientProjection,
     LearnableSolver,
 )
-from neuround.rounding import (
+from reins.rounding import (
     StochasticSTERounding,
     DynamicThresholdRounding,
     StochasticAdaptiveSelectionRounding,
@@ -399,7 +399,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Print experiment info
     print(config)
     print(f"LR in RB for size {config.size}.")
-    from neuround import Problem, Trainer
+    from reins import Problem, Trainer
     steepness = config.steepness
     num_blocks = config.size
     hsize = config.hsize
