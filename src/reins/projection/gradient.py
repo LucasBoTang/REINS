@@ -75,9 +75,13 @@ class GradientProjection:
                 break
 
             # Gradient step on all target variables
-            grads = torch.autograd.grad(total_viol.sum(), list(xs.values()))
+            grads = torch.autograd.grad(
+                total_viol.sum(), list(xs.values()),
+                allow_unused=True,
+            )
             xs = {
                 k: (xs[k] - d * self.step_size * g).detach().requires_grad_(True)
+                if g is not None else xs[k]
                 for k, g in zip(self.target_keys, grads)
             }
             d = self.decay * d
