@@ -60,13 +60,13 @@ class GradientProjection:
             for comp in self.rounding_components:
                 temp_data.update(comp(temp_data))
 
-            # Compute total violation from constraints
-            total_viol = torch.zeros(batch_size, device=device)
+            # Compute total violation from all constraints at once
+            viols = []
             for con in self.constraints:
                 out = con(temp_data)
                 viol_key = con.output_keys[2]
-                viol = out[viol_key]
-                total_viol = total_viol + viol.reshape(batch_size, -1).sum(dim=1)
+                viols.append(out[viol_key].reshape(batch_size, -1).sum(dim=1))
+            total_viol = torch.stack(viols).sum(dim=0) if len(viols) > 1 else viols[0]
 
             # Check convergence
             if total_viol.max().item() < self.tolerance:
