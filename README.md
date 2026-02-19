@@ -6,7 +6,7 @@ Based on the paper: **"[Learning to Optimize for Mixed-Integer Nonlinear Program
 
 ## Overview
 
-Neuround solves **parametric MINLP**: given a family of optimization problems that share the same structure but differ in parameter values (e.g., constraint right-hand sides), it learns a neural network that maps parameters directly to high-quality integer solutions, without invoking a traditional solver at inference time.
+REINS solves **parametric MINLP**: given a family of optimization problems that share the same structure but differ in parameter values (e.g., constraint right-hand sides), it learns a neural network that maps parameters directly to high-quality integer solutions, without invoking a traditional solver at inference time.
 
 The key components are differentiable **integer correction layers** (for rounding continuous relaxations to integers) and **gradient-based feasibility projection** (for enforcing feasibility post-hoc). Training is self-supervised: only sampled parameter values are needed, not expensive optimal solutions. The framework scales to problems with tens of thousands of variables at subsecond inference with fast training.
 
@@ -41,7 +41,7 @@ This tutorial walks through building a learnable solver for a parametric integer
 
 $$\min_{x} \quad \frac{1}{2} x^\top Q x + p^\top x \quad \text{s.t.} \quad Ax \leq b, \quad x \in \mathbb{Z}^n$$
 
-Here $Q$, $p$, $A$ are fixed problem coefficients, while $b$ is the **varying parameter**. Different values of $b$ define different problem instances. The goal of Neuround is to learn a neural network mapping $b \mapsto x^*$ so that, given any new $b$, the network efficiently predicts a high-quality integer solution.
+Here $Q$, $p$, $A$ are fixed problem coefficients, while $b$ is the **varying parameter**. Different values of $b$ define different problem instances. The goal of REINS is to learn a neural network mapping $b \mapsto x^*$ so that, given any new $b$, the network efficiently predicts a high-quality integer solution.
 
 The training pipeline:
 1. **Sample** a dataset of parameter values $\{b^{(i)}\}$ (no optimal solutions needed)
@@ -54,7 +54,7 @@ The training pipeline:
 Use `variable()` to create decision variables with type metadata. This tells rounding layers which indices need integrality enforcement.
 
 ```python
-from neuround import variable, VarType
+from reins import variable, VarType
 
 # Pure integer variable
 x = variable("x", num_vars=5, integer_indices=[0, 1, 2, 3, 4])
@@ -84,7 +84,7 @@ The solution mapping network learns the mapping $b \mapsto x_{\text{rel}}$: it t
 
 ```python
 from torch import nn
-from neuround import MLP, MLPBnDrop, Node
+from reins import MLP, MLPBnDrop, Node
 
 num_var = 5
 num_ineq = 5
@@ -120,7 +120,7 @@ Rounding layers convert continuous relaxations to integer solutions. All inherit
 
 **Non-learnable (baseline):**
 ```python
-from neuround.rounding import STERounding
+from reins.rounding import STERounding
 
 rounding = STERounding(x)
 ```
@@ -128,7 +128,7 @@ rounding = STERounding(x)
 **Learnable (recommended):** these use a secondary network that takes the concatenation of problem parameters $b$ and the relaxed solution $x_{\text{rel}}$, and predicts per-variable rounding decisions.
 
 ```python
-from neuround.rounding import (
+from reins.rounding import (
     DynamicThresholdRounding,
     StochasticAdaptiveSelectionRounding,
 )
@@ -162,12 +162,12 @@ rounding = StochasticAdaptiveSelectionRounding(
 
 ### Step 4: Define Loss (Objectives + Constraints)
 
-Neuround uses operator overloading to define objectives and constraints symbolically. The `variable()` calls here create symbolic placeholders — their keys (`"x"`, `"b"`) must match the keys produced by the solution map and the data dict, respectively. They are combined into a `PenaltyLoss` that serves as the self-supervised training signal.
+REINS uses operator overloading to define objectives and constraints symbolically. The `variable()` calls here create symbolic placeholders — their keys (`"x"`, `"b"`) must match the keys produced by the solution map and the data dict, respectively. They are combined into a `PenaltyLoss` that serves as the self-supervised training signal.
 
 ```python
 import torch
 import numpy as np
-from neuround import variable, PenaltyLoss
+from reins import variable, PenaltyLoss
 
 # Fixed problem coefficients (Q, p, A do not change across instances)
 rng = np.random.RandomState(17)
@@ -198,7 +198,7 @@ loss = PenaltyLoss(objectives=[obj], constraints=[con])
 `LearnableSolver` composes the solution map, rounding layer, and loss. It automatically validates key/dimension alignment. By default, it builds a `GradientProjection` (1000 steps) for feasibility enforcement at inference.
 
 ```python
-from neuround import LearnableSolver
+from reins import LearnableSolver
 
 # Default: projection enabled (projection_steps=1000)
 solver = LearnableSolver(
@@ -233,7 +233,7 @@ Since this is parametric optimization, training data consists of sampled paramet
 
 ```python
 from torch.utils.data import DataLoader
-from neuround import DictDataset
+from reins import DictDataset
 
 # Sample parameter values (each b defines a different problem instance)
 num_data = 10000
@@ -278,7 +278,7 @@ print(result["x_rel"])   # continuous relaxation
 ## Package Structure
 
 ```
-src/neuround/                    # Core package
+src/reins/                    # Core package
 ├── __init__.py                  # Public API
 ├── variable.py                  # VarType enum & variable() factory
 ├── blocks.py                    # MLPBnDrop (MLP with BatchNorm + Dropout)

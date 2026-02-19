@@ -1,5 +1,5 @@
 """
-neuround: Neuromancer extension for Mixed-Integer Nonlinear Programming.
+reins: Neuromancer extension for Mixed-Integer Nonlinear Programming.
 """
 
 # ---- Re-exports from neuromancer ----
@@ -10,17 +10,17 @@ from neuromancer.loss import PenaltyLoss
 from neuromancer.problem import Problem
 from neuromancer.trainer import Trainer
 
-# ---- neuround modules ----
-from neuround.blocks import MLPBnDrop
-from neuround.variable import VarType, variable
-from neuround.projection import GradientProjection
-from neuround.solver import LearnableSolver
+# ---- reins modules ----
+from reins.blocks import MLPBnDrop
+from reins.variable import VarType, variable
+from reins.projection import GradientProjection
+from reins.solver import LearnableSolver
 
 __all__ = [
     # neuromancer re-exports
     "Node", "DictDataset", "Trainer",
     "Objective", "Constraint", "PenaltyLoss", "Problem",
-    # neuround modules
+    # reins modules
     "MLPBnDrop",
     "VarType", "variable",
     "GradientProjection",

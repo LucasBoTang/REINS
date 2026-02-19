@@ -6,7 +6,7 @@ import pytest
 import torch
 from neuromancer.constraint import Variable
 
-from neuround.variable import VarType, variable
+from reins.variable import VarType, variable
 
 
 class TestVarType:
@@ -348,16 +348,16 @@ class TestVariableNodeIntegration:
 
 
 class TestVariableExport:
-    """Test that VarType and variable are exported from neuround."""
+    """Test that VarType and variable are exported from reins."""
 
     def test_vartype_export(self):
-        import neuround
-        assert hasattr(neuround, "VarType")
-        assert "VarType" in neuround.__all__
-        assert neuround.VarType is VarType
+        import reins
+        assert hasattr(reins, "VarType")
+        assert "VarType" in reins.__all__
+        assert reins.VarType is VarType
 
     def test_variable_export(self):
-        import neuround
-        assert hasattr(neuround, "variable")
-        assert "variable" in neuround.__all__
-        assert neuround.variable is variable
+        import reins
+        assert hasattr(reins, "variable")
+        assert "variable" in reins.__all__
+        assert reins.variable is variable
