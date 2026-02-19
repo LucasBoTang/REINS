@@ -1,14 +1,14 @@
 """
-Solution mapping node with output splitting by variable sizes.
+Relaxation node with output splitting by variable sizes.
 """
 
 import torch
 from neuromancer.system import Node
 
 
-class SmapNode(Node):
+class RelaxationNode(Node):
     """
-    Solution mapping node that auto-splits network output by variable sizes.
+    Relaxation node that auto-splits network output by variable sizes.
 
     Args:
         callable: Network whose output dim equals sum of variable sizes.
@@ -19,7 +19,7 @@ class SmapNode(Node):
         name: Module name.
     """
 
-    def __init__(self, callable, input_keys, output_keys, sizes=None, name="smap"):
+    def __init__(self, callable, input_keys, output_keys, sizes=None, name="relaxation"):
         # Normalize output keys
         if isinstance(output_keys, str):
             output_keys = [output_keys]

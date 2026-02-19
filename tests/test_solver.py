@@ -45,10 +45,10 @@ def _make_var(key, num_vars, integer_indices=None, binary_indices=None):
     )
 
 
-def _make_smap(input_key, output_key, insize, outsize):
-    """Create a minimal smap Node."""
+def _make_relaxation(input_key, output_key, insize, outsize):
+    """Create a minimal relaxation Node."""
     net = nn.Linear(insize, outsize)
-    return Node(net, [input_key], [output_key], name="smap")
+    return Node(net, [input_key], [output_key], name="relaxation")
 
 
 def _make_loss(var_key, constraints=None):
@@ -73,8 +73,8 @@ def int_var():
 
 
 @pytest.fixture
-def smap(int_var):
-    return _make_smap("b", "x_rel", insize=4, outsize=3)
+def rel(int_var):
+    return _make_relaxation("b", "x_rel", insize=4, outsize=3)
 
 
 @pytest.fixture
@@ -104,79 +104,79 @@ def loss_no_constraints():
 class TestLearnableSolverConstruction:
     """Tests for LearnableSolver construction and validation."""
 
-    def test_construction_basic(self, smap, rounding, loss):
+    def test_construction_basic(self, rel,rounding, loss):
         """Basic construction should succeed (constraints from loss)."""
-        solver = LearnableSolver(smap, rounding, loss)
-        assert solver.smap_node is smap
+        solver = LearnableSolver(rel, rounding, loss)
+        assert solver.relaxation_node is rel
         assert solver.rounding_node is rounding
 
-    def test_construction_no_constraints(self, smap, rounding, loss_no_constraints):
+    def test_construction_no_constraints(self, rel,rounding, loss_no_constraints):
         """Construction without constraints should succeed (no projection)."""
-        solver = LearnableSolver(smap, rounding, loss_no_constraints)
+        solver = LearnableSolver(rel, rounding, loss_no_constraints)
         assert solver.projection is None
 
     def test_key_mismatch_raises(self, rounding, loss):
-        """Should raise ValueError when smap output doesn't match rounding input."""
-        bad_smap = _make_smap("b", "y_rel", insize=4, outsize=3)
+        """Should raise ValueError when relaxation output doesn't match rounding input."""
+        bad_rel = _make_relaxation("b", "y_rel", insize=4, outsize=3)
         with pytest.raises(ValueError, match="Key mismatch"):
-            LearnableSolver(bad_smap, rounding, loss)
+            LearnableSolver(bad_rel, rounding, loss)
 
     def test_dimension_mismatch_raises(self, loss):
-        """Should raise ValueError when rounding indices exceed smap output dim."""
+        """Should raise ValueError when rounding indices exceed relaxation output dim."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
-        smap = _make_smap("b", "x_rel", insize=4, outsize=2)
+        rel = _make_relaxation("b", "x_rel", insize=4, outsize=2)
         rnd = STERounding(var)
         with pytest.raises(ValueError, match="rounding index"):
-            LearnableSolver(smap, rnd, loss)
+            LearnableSolver(rel, rnd, loss)
 
     def test_dimension_check_skipped_without_attribute(self, loss):
         """Should skip dimension check if callable has no out_features."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
         # Use a lambda wrapper that has no out_features attribute
         net = lambda x: torch.zeros(x.shape[0], 3)  # noqa: E731
-        smap = Node(net, ["b"], ["x_rel"], name="smap")
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
         rnd = STERounding(var)
         # Should not raise
-        solver = LearnableSolver(smap, rnd, loss)
+        solver = LearnableSolver(rel, rnd, loss)
         assert solver is not None
 
-    def test_projection_default_enabled(self, smap, rounding, loss):
+    def test_projection_default_enabled(self, rel,rounding, loss):
         """Projection should be enabled by default (constraints from loss)."""
-        solver = LearnableSolver(smap, rounding, loss)
+        solver = LearnableSolver(rel, rounding, loss)
         assert solver.projection_steps == 1000
         assert isinstance(solver.projection, GradientProjection)
 
-    def test_projection_disabled_explicit(self, smap, rounding, loss):
+    def test_projection_disabled_explicit(self, rel,rounding, loss):
         """Projection can be disabled with projection_steps=0."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         assert solver.projection is None
 
-    def test_projection_skipped_without_constraints(self, smap, rounding, loss_no_constraints):
+    def test_projection_skipped_without_constraints(self, rel,rounding, loss_no_constraints):
         """Projection is skipped when loss has no constraints."""
-        solver = LearnableSolver(smap, rounding, loss_no_constraints)
+        solver = LearnableSolver(rel, rounding, loss_no_constraints)
         assert solver.projection_steps == 1000
         assert solver.projection is None
 
-    def test_projection_custom_steps(self, smap, rounding, loss):
+    def test_projection_custom_steps(self, rel,rounding, loss):
         """Should create GradientProjection with custom steps."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=10,
+            rel, rounding, loss, projection_steps=10,
         )
         assert solver.projection_steps == 10
         assert isinstance(solver.projection, GradientProjection)
 
-    def test_problem_contains_nodes(self, smap, rounding, loss):
-        """Problem should contain smap and rounding nodes."""
-        solver = LearnableSolver(smap, rounding, loss)
-        assert smap in solver.problem.nodes
+    def test_problem_contains_nodes(self, rel,rounding, loss):
+        """Problem should contain relaxation and rounding nodes."""
+        solver = LearnableSolver(rel, rounding, loss)
+        assert rel in solver.problem.nodes
         assert rounding in solver.problem.nodes
 
-    def test_stores_references(self, smap, rounding, loss):
-        """Should store references to smap and rounding."""
-        solver = LearnableSolver(smap, rounding, loss)
-        assert solver.smap_node is smap
+    def test_stores_references(self, rel,rounding, loss):
+        """Should store references to relaxation and rounding."""
+        solver = LearnableSolver(rel, rounding, loss)
+        assert solver.relaxation_node is rel
         assert solver.rounding_node is rounding
 
 
@@ -185,57 +185,57 @@ class TestLearnableSolverConstruction:
 class TestLearnableSolverPredict:
     """Tests for LearnableSolver.predict() without projection."""
 
-    def test_predict_returns_dict(self, smap, rounding, loss):
+    def test_predict_returns_dict(self, rel,rounding, loss):
         """predict() should return a dict with the output key."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         data = {"b": torch.randn(2, 4)}
         result = solver.predict(data)
         assert isinstance(result, dict)
         assert "x" in result
 
-    def test_predict_output_shape(self, smap, rounding, loss):
+    def test_predict_output_shape(self, rel,rounding, loss):
         """Output should have correct shape (batch, num_vars)."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         data = {"b": torch.randn(2, 4)}
         result = solver.predict(data)
         assert result["x"].shape == (2, 3)
 
-    def test_predict_preserves_input_keys(self, smap, rounding, loss):
+    def test_predict_preserves_input_keys(self, rel,rounding, loss):
         """Input key 'b' should still be in the result."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         data = {"b": torch.randn(2, 4)}
         result = solver.predict(data)
         assert "b" in result
 
-    def test_predict_adds_relaxed_key(self, smap, rounding, loss):
-        """Relaxed key 'x_rel' should be added by smap."""
+    def test_predict_adds_relaxed_key(self, rel,rounding, loss):
+        """Relaxed key 'x_rel' should be added by relaxation."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         data = {"b": torch.randn(2, 4)}
         result = solver.predict(data)
         assert "x_rel" in result
 
-    def test_predict_eval_mode(self, smap, rounding, loss):
+    def test_predict_eval_mode(self, rel,rounding, loss):
         """predict() should set problem to eval mode."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         solver.problem.train()
         data = {"b": torch.randn(2, 4)}
         solver.predict(data)
         assert not solver.problem.training
 
-    def test_predict_integer_output(self, smap, rounding, loss):
+    def test_predict_integer_output(self, rel,rounding, loss):
         """Rounded integer variables should be integral."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         data = {"b": torch.randn(5, 4)}
         result = solver.predict(data)
@@ -248,10 +248,10 @@ class TestLearnableSolverPredict:
 class TestLearnableSolverPredictWithProjection:
     """Tests for LearnableSolver.predict() with projection."""
 
-    def test_predict_with_projection(self, smap, rounding, loss):
+    def test_predict_with_projection(self, rel,rounding, loss):
         """Prediction with projection should return dict with output key."""
         solver = LearnableSolver(
-            smap, rounding, loss,
+            rel, rounding, loss,
             projection_steps=10,
             projection_step_size=0.1,
         )
@@ -268,12 +268,12 @@ class TestLearnableSolverPredictWithProjection:
         net = nn.Linear(4, 3)
         nn.init.constant_(net.weight, 5.0)
         nn.init.constant_(net.bias, 10.0)
-        smap = Node(net, ["b"], ["x_rel"], name="smap")
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
         rnd = STERounding(var)
         con = _make_constraint("x", upper_bound=3.0)
         loss = _make_loss("x", constraints=[con])
         solver = LearnableSolver(
-            smap, rnd, loss,
+            rel, rnd, loss,
             projection_steps=300,
             projection_step_size=0.1,
         )
@@ -286,12 +286,12 @@ class TestLearnableSolverPredictWithProjection:
         """After projection, integer variables should still be integral."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
         net = nn.Linear(4, 3)
-        smap = Node(net, ["b"], ["x_rel"], name="smap")
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
         rnd = STERounding(var)
         con = _make_constraint("x", upper_bound=5.0)
         loss = _make_loss("x", constraints=[con])
         solver = LearnableSolver(
-            smap, rnd, loss,
+            rel, rnd, loss,
             projection_steps=50,
             projection_step_size=0.1,
         )
@@ -310,10 +310,10 @@ class TestLearnableSolverVariableTypes:
         """Continuous cols stay continuous, integer cols integral, binary cols {0,1}."""
         # dim 0: integer, dim 1: binary, dim 2-3: continuous
         var = _make_var("x", 4, integer_indices=[0], binary_indices=[1])
-        smap = _make_smap("b", "x_rel", insize=4, outsize=4)
+        rel = _make_relaxation("b", "x_rel", insize=4, outsize=4)
         rnd = STERounding(var)
         loss = _make_loss("x")
-        solver = LearnableSolver(smap, rnd, loss, projection_steps=0)
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
 
         data = {"b": torch.randn(10, 4)}
         result = solver.predict(data)
@@ -331,10 +331,10 @@ class TestLearnableSolverVariableTypes:
     def test_binary_only_output(self):
         """All-binary variable should produce only {0, 1} values."""
         var = _make_var("x", 3, binary_indices=[0, 1, 2])
-        smap = _make_smap("b", "x_rel", insize=4, outsize=3)
+        rel = _make_relaxation("b", "x_rel", insize=4, outsize=3)
         rnd = STERounding(var)
         loss = _make_loss("x")
-        solver = LearnableSolver(smap, rnd, loss, projection_steps=0)
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
 
         data = {"b": torch.randn(10, 4)}
         result = solver.predict(data)
@@ -342,12 +342,12 @@ class TestLearnableSolverVariableTypes:
         assert ((x == 0) | (x == 1)).all(), "Binary variables should be 0 or 1"
 
     def test_multi_variable(self):
-        """Solver with two variables (x: integer, y: binary) via a shared smap."""
+        """Solver with two variables (x: integer, y: binary) via a shared relaxation node."""
         var_x = _make_var("x", 2, integer_indices=[0, 1])
         var_y = _make_var("y", 2, binary_indices=[0, 1])
         rnd = STERounding([var_x, var_y])
 
-        # Custom smap that outputs both x_rel and y_rel
+        # Custom relaxation node that outputs both x_rel and y_rel
         class DualHead(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -357,7 +357,7 @@ class TestLearnableSolverVariableTypes:
                 return self.net(b)[:, :2], self.net(b)[:, 2:]
 
         dual = DualHead()
-        smap = Node(dual, ["b"], ["x_rel", "y_rel"], name="smap")
+        rel = Node(dual, ["b"], ["x_rel", "y_rel"], name="relaxation")
 
         loss_x = nm.variable("x")
         loss_y = nm.variable("y")
@@ -365,7 +365,7 @@ class TestLearnableSolverVariableTypes:
         obj = f.minimize(weight=1.0, name="obj")
         loss = PenaltyLoss(objectives=[obj], constraints=[])
 
-        solver = LearnableSolver(smap, rnd, loss, projection_steps=0)
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
 
         data = {"b": torch.randn(5, 4)}
         result = solver.predict(data)
@@ -383,10 +383,10 @@ class TestLearnableSolverVariableTypes:
 class TestLearnableSolverTrain:
     """Integration tests for LearnableSolver.train()."""
 
-    def test_train_runs_without_error(self, smap, rounding, loss):
+    def test_train_runs_without_error(self, rel,rounding, loss):
         """Training should complete without errors."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         optimizer = torch.optim.AdamW(solver.problem.parameters(), lr=1e-3)
 
@@ -411,10 +411,10 @@ class TestLearnableSolverTrain:
         """Training loss should decrease over epochs."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
         net = nn.Linear(4, 3)
-        smap = Node(net, ["b"], ["x_rel"], name="smap")
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
         rnd = STERounding(var)
         loss = _make_loss("x")
-        solver = LearnableSolver(smap, rnd, loss, projection_steps=0)
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
 
         b_data = torch.randn(128, 4)
         ds = DictDataset({"b": b_data}, name="train")
@@ -447,10 +447,10 @@ class TestLearnableSolverTrain:
             f"Loss should decrease: before={loss_before:.4f}, after={loss_after:.4f}"
         )
 
-    def test_predict_after_train(self, smap, rounding, loss):
+    def test_predict_after_train(self, rel,rounding, loss):
         """Prediction should work after training."""
         solver = LearnableSolver(
-            smap, rounding, loss, projection_steps=0,
+            rel, rounding, loss, projection_steps=0,
         )
         optimizer = torch.optim.AdamW(solver.problem.parameters(), lr=1e-3)
 

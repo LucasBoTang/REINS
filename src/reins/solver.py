@@ -11,11 +11,11 @@ from reins.projection.gradient import GradientProjection
 
 class LearnableSolver:
     """
-    Convenience wrapper composing smap + rounding + loss into a
+    Convenience wrapper composing relaxation + rounding + loss into a
     neuromancer Problem with optional GradientProjection for inference.
 
     Args:
-        smap_node: Node wrapping the solution mapper MLP.
+        relaxation_node: RelaxationNode instance.
         rounding_node: RoundingNode instance.
         loss: PenaltyLoss instance (objectives + constraints).
         projection_steps: Max projection iterations (default 1000).
@@ -23,12 +23,12 @@ class LearnableSolver:
         projection_decay: Decay rate for projection step size.
     """
 
-    def __init__(self, smap_node, rounding_node, loss,
+    def __init__(self, relaxation_node, rounding_node, loss,
                  projection_steps=1000,
                  projection_step_size=0.01,
                  projection_decay=1.0):
-        # Store solution mapping node
-        self.smap_node = smap_node
+        # Store relaxation node
+        self.relaxation_node = relaxation_node
         # Store rounding node
         self.rounding_node = rounding_node
         # Store loss
@@ -38,53 +38,53 @@ class LearnableSolver:
         self.projection_step_size = projection_step_size
         self.projection_decay = projection_decay
 
-        # Validate key alignment between smap outputs and rounding inputs
+        # Validate key alignment between relaxation outputs and rounding inputs
         self._validate_key_alignment()
-        # Validate dimension alignment between smap outputs and rounding indices
+        # Validate dimension alignment between relaxation outputs and rounding indices
         self._validate_dimension_alignment()
-        # Build neuromancer Problem with smap and rounding nodes
+        # Build neuromancer Problem with relaxation and rounding nodes
         self._build_problem()
         # Build optional GradientProjection for inference
         self._build_projection(list(self.loss.constraints))
 
     def _validate_key_alignment(self):
-        """Check smap output keys cover rounding input keys."""
-        # Collect smap output keys
-        smap_outputs = set(self.smap_node.output_keys)
+        """Check relaxation output keys cover rounding input keys."""
+        # Collect relaxation output keys
+        relaxation_outputs = set(self.relaxation_node.output_keys)
         # Collect relaxed keys
         rounding_rel_keys = {v.relaxed.key for v in self.rounding_node.vars}
-        # Check all rounding relaxed keys are in smap outputs
-        missing = rounding_rel_keys - smap_outputs
+        # Check all rounding relaxed keys are in relaxation outputs
+        missing = rounding_rel_keys - relaxation_outputs
         if missing:
             raise ValueError(
                 f"Key mismatch: rounding layer expects relaxed keys "
-                f"{missing} but smap_node outputs "
-                f"{self.smap_node.output_keys}"
+                f"{missing} but relaxation_node outputs "
+                f"{self.relaxation_node.output_keys}"
             )
 
     def _validate_dimension_alignment(self):
-        """Check rounding indices do not exceed smap output dimension."""
-        # Get smap output dimension
-        out_dim = getattr(self.smap_node.callable, 'out_features', None)
+        """Check rounding indices do not exceed relaxation output dimension."""
+        # Get relaxation output dimension
+        out_dim = getattr(self.relaxation_node.callable, 'out_features', None)
         # Fallback to 'outsize' attribute if 'out_features' is not available
         if out_dim is None:
-            out_dim = getattr(self.smap_node.callable, 'outsize', None)
+            out_dim = getattr(self.relaxation_node.callable, 'outsize', None)
         # Check against rounding variable indices
         if out_dim is not None:
             # Collect rounding indices
             for var in self.rounding_node.vars:
-                # Check integer and binary indices against smap output dimension
+                # Check integer and binary indices against relaxation output dimension
                 all_idx = var.integer_indices + var.binary_indices
                 if all_idx and max(all_idx) >= out_dim:
                     raise ValueError(
                         f"Variable '{var.key}': rounding index "
-                        f"{max(all_idx)} >= smap output dim {out_dim}"
+                        f"{max(all_idx)} >= relaxation output dim {out_dim}"
                     )
 
     def _build_problem(self):
-        """Assemble neuromancer Problem from smap and rounding nodes."""
+        """Assemble neuromancer Problem from relaxation and rounding nodes."""
         self.problem = Problem(
-            nodes=[self.smap_node, self.rounding_node],
+            nodes=[self.relaxation_node, self.rounding_node],
             loss=self.loss,
         )
 
@@ -137,8 +137,8 @@ class LearnableSolver:
         """
         Inference: params -> projected rounded solution.
 
-        Without projection: smap -> rounding (no_grad).
-        With projection: smap (no_grad) -> projection (grad enabled).
+        Without projection: relaxation -> rounding (no_grad).
+        With projection: relaxation (no_grad) -> projection (grad enabled).
 
         Args:
             data: Dictionary with parameter tensors.
@@ -149,9 +149,9 @@ class LearnableSolver:
         # Ensure model is in eval mode
         self.problem.eval()
 
-        # Get relaxed solution from smap
+        # Get relaxed solution from relaxation node
         with torch.no_grad():
-            data.update(self.smap_node(data))
+            data.update(self.relaxation_node(data))
 
         # Apply projection (handles rounding internally)
         if self.projection is not None:

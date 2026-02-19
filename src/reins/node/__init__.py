@@ -1,8 +1,8 @@
 """
-Node components: solution mapping and integer rounding.
+Node components: relaxation and integer rounding.
 """
 
-from reins.node.smap import SmapNode
+from reins.node.relaxation import RelaxationNode
 from reins.node.rounding import (
     RoundingNode,
     STERounding,

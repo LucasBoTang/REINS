@@ -224,7 +224,7 @@ class TestVariableComputationGraph:
     def test_relaxed_variable_in_graph(self):
         """Relaxed variable should work as computation graph input."""
         x = variable("x", num_vars=2, integer_indices=[0, 1])
-        # relaxed key is "x_rel", used as input to smap/RoundingLayer
+        # relaxed key is "x_rel", used as input to RelaxationNode/RoundingLayer
         y = x.relaxed + 1.0
         data = {"x_rel": torch.tensor([0.5, 0.7])}
         result = y(data)
@@ -329,8 +329,8 @@ class TestVariableNodeIntegration:
 
         net = nn.Linear(3, 2)
         x = variable("x", num_vars=2, integer_indices=[0, 1])
-        # smap pattern: network takes x_rel as input, outputs x_rel
-        node = Node(net, [x.relaxed.key], [x.relaxed.key], name="smap")
+        # relaxation pattern: network takes x_rel as input, outputs x_rel
+        node = Node(net, [x.relaxed.key], [x.relaxed.key], name="relaxation")
         data = {"x_rel": torch.randn(4, 3)}
         out = node(data)
         assert x.relaxed.key in out
@@ -342,14 +342,14 @@ class TestVariableNodeIntegration:
         import torch.nn as nn
 
         x = variable("x", num_vars=3, integer_indices=[0, 1, 2])
-        # Node 1: smap outputs relaxed solution
+        # Node 1: relaxation outputs relaxed solution
         net = nn.Linear(2, 3)
-        smap = Node(net, ["b"], [x.relaxed.key], name="smap")
+        rel = Node(net, ["b"], [x.relaxed.key], name="relaxation")
         # Node 2: identity as placeholder for rounding (x_rel -> x)
         rnd = Node(lambda d: d, [x.relaxed.key], [x.key], name="round")
 
         data = {"b": torch.randn(4, 2)}
-        data = smap(data)
+        data = rel(data)
         assert x.relaxed.key in data  # "x_rel"
         data = rnd(data)
         assert x.key in data  # "x"

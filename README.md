@@ -71,18 +71,18 @@ y = variable("y", var_types=[
 ])
 ```
 
-### Step 2: Build Solution Mapping Network
+### Step 2: Build Relaxation Network
 
-The solution mapping network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `SmapNode` to integrate it into the pipeline.
+The relaxation network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `RelaxationNode` to integrate it into the pipeline.
 
 ```python
 from reins import MLPBnDrop
-from reins.node import SmapNode
+from reins.node import RelaxationNode
 
 num_var = 5
 num_ineq = 5
 
-smap_net = MLPBnDrop(
+rel_net = MLPBnDrop(
     insize=num_ineq,
     outsize=num_var,
     hsizes=[64] * 4,
@@ -90,8 +90,8 @@ smap_net = MLPBnDrop(
     bnorm=True,       # batch normalization
 )
 
-# data["b"] -> smap_net -> data["x_rel"]
-smap = SmapNode(smap_net, ["b"], ["x"], name="smap")
+# data["b"] -> rel_net -> data["x_rel"]
+rel = RelaxationNode(rel_net, ["b"], ["x"])
 ```
 
 
@@ -125,7 +125,7 @@ rounding = DynamicThresholdRounding(
 
 ### Step 4: Define Loss (Objectives + Constraints)
 
-Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`.
+Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`. **Use the same `x` from Step 1** so that the loss and rounding layer share the same variable object.
 
 ```python
 import torch
@@ -138,8 +138,7 @@ Q = torch.from_numpy(0.01 * np.diag(rng.random(size=num_var))).float()
 p = torch.from_numpy(0.1 * rng.random(num_var)).float()
 A = torch.from_numpy(rng.normal(scale=0.1, size=(num_ineq, num_var))).float()
 
-# Symbolic variables for loss expression
-x = variable("x")
+# Use the same x from Step 1 (do NOT create a new variable("x"))
 b = variable("b")
 
 # Objective: minimize (1/2) x^T Q x + p^T x
@@ -156,16 +155,16 @@ loss = PenaltyLoss(objectives=[obj], constraints=[con])
 
 ### Step 5: Assemble the Solver
 
-`LearnableSolver` composes the solution map, rounding layer, and loss.
+`LearnableSolver` composes the relaxation node, rounding layer, and loss.
 
 ```python
 from reins import LearnableSolver
 
 # Default: GradientProjection enabled (1000 steps) for feasibility enforcement at inference
-solver = LearnableSolver(smap, rounding, loss)
+solver = LearnableSolver(rel, rounding, loss)
 
 # Disable projection
-solver = LearnableSolver(smap, rounding, loss, projection_steps=0)
+solver = LearnableSolver(rel, rounding, loss, projection_steps=0)
 ```
 
 
@@ -221,7 +220,7 @@ src/reins/                    # Core package
 ├── blocks.py                    # MLPBnDrop (MLP with BatchNorm + Dropout)
 ├── solver.py                    # LearnableSolver wrapper
 ├── node/                        # Node components
-│   ├── smap.py                  # SmapNode (solution mapping with auto-split)
+│   ├── relaxation.py             # RelaxationNode (relaxation solution)
 │   └── rounding/                # Integer rounding layers
 │       ├── functions.py         # Differentiable STE primitives
 │       ├── base.py              # RoundingNode abstract base class
