@@ -52,10 +52,10 @@ def build_loss(x, y, p, a, steepness, num_blocks, penalty_weight, device="cpu", 
     Build PenaltyLoss for the Rosenbrock problem.
 
     min  sum_i (a_i - x_i)^2 + steepness * (y_i - x_i^2)^2
-    s.t. sum(y) >= num_blocks * p / 2       (inner)
-         sum(x^2) <= num_blocks * p          (outer)
-         b^T x <= 0                          (linear 1)
-         q^T y <= 0                          (linear 2)
+    s.t. sum(y) >= num_blocks * p / 2      (inner)
+         sum(x^2) <= num_blocks * p        (outer)
+         b^T x <= 0                        (linear 1)
+         q^T y <= 0                        (linear 2)
 
     Args:
         x: TypeVariable for continuous decision variable.
