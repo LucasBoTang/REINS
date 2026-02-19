@@ -132,7 +132,7 @@ Rounding layers convert continuous relaxations to integer solutions.
 
 ```python
 from reins.node.rounding import (
-    StochasticAdaptiveSelectionRounding,
+    StochasticAdaptiveSelectionRounding, # stochastic version with Gumbel noise
     DynamicThresholdRounding,
 )
 
@@ -143,14 +143,10 @@ rnd_net = MLPBnDrop(
 )
 
 # Adaptive Selection (AS)
-rounding = StochasticAdaptiveSelectionRounding(
-    rnd_net, [b], [x], continuous_update=True,
-)
+rounding = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x], continuous_update=True)
 
 # Dynamic Thresholding (DT)
-rounding = DynamicThresholdRounding(
-    rnd_net, [b], [x],
-)
+rounding = DynamicThresholdRounding(rnd_net, [b], [x])
 ```
 
 
