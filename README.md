@@ -84,7 +84,7 @@ The solution mapping network learns the mapping $b \mapsto x_{\text{rel}}$: it t
 
 ```python
 from torch import nn
-from reins import MLP, MLPBnDrop, Node
+from reins import MLPBnDrop, Node
 
 num_var = 5
 num_ineq = 5
@@ -119,8 +119,8 @@ rounding = STERounding(x)
 
 ```python
 from reins.rounding import (
-    DynamicThresholdRounding,
     StochasticAdaptiveSelectionRounding,
+    DynamicThresholdRounding,
 )
 
 # Rounding network: [b, x_rel] -> per-variable rounding decisions
@@ -132,20 +132,20 @@ rnd_net = MLPBnDrop(
     bnorm=False,
 )
 
-# Learnable Thresholding (LT): learns per-variable rounding thresholds
-rounding = DynamicThresholdRounding(
+# Adaptive Selection (AS): learns rounding direction per variable
+rounding = StochasticAdaptiveSelectionRounding(
     vars=x,
     param_keys=["b"],            # which data keys are problem parameters
     net=rnd_net,
-    continuous_update=False,     # whether to also adjust continuous vars via net
+    continuous_update=True,      # whether to also adjust continuous vars via net
 )
 
-# Rounding Classification (RC): learns rounding direction per variable
-rounding = StochasticAdaptiveSelectionRounding(
+# Dynamic Thresholding (DT): learns per-variable rounding thresholds
+rounding = DynamicThresholdRounding(
     vars=x,
     param_keys=["b"],
     net=rnd_net,
-    continuous_update=True,
+    continuous_update=False,
 )
 ```
 
@@ -167,16 +167,16 @@ A = torch.from_numpy(rng.normal(scale=0.1, size=(num_ineq, num_var))).float()
 
 # Symbolic variables for loss expression
 # "x" matches the rounding layer output; "b" matches the data dict key
-x_sym = variable("x")
-b_sym = variable("b")
+x = variable("x")
+b = variable("b")
 
 # Objective: minimize (1/2) x^T Q x + p^T x
-f = 0.5 * torch.sum((x_sym @ Q) * x_sym, dim=1) + torch.sum(p * x_sym, dim=1)
+f = 0.5 * torch.sum((x @ Q) * x, dim=1) + torch.sum(p * x, dim=1)
 obj = f.minimize(weight=1.0, name="obj")
 
 # Constraint: Ax <= b (with penalty weight)
 penalty_weight = 100
-con = penalty_weight * (x_sym @ A.T <= b_sym)
+con = penalty_weight * (x @ A.T <= b)
 
 # Combine into loss
 loss = PenaltyLoss(objectives=[obj], constraints=[con])
@@ -203,16 +203,6 @@ solver = LearnableSolver(
     rounding_node=rounding,
     loss=loss,
     projection_steps=0,          # 0 = no projection at inference
-)
-
-# Custom projection settings
-solver = LearnableSolver(
-    smap_node=smap,
-    rounding_node=rounding,
-    loss=loss,
-    projection_steps=500,
-    projection_step_size=0.05,
-    projection_decay=0.99,       # step size decays each iteration
 )
 ```
 
@@ -306,8 +296,8 @@ Two learnable correction layers enforce integrality in neural network output:
     <img src="img/method_LT.png" alt="example for RT" width="48%"/>
 </div>
 
-- **Rounding Classification (RC)** / `AdaptiveSelectionRounding`: Learns a classification strategy to determine rounding directions for integer variables.
-- **Learnable Thresholding (LT)** / `DynamicThresholdRounding`: Learns a threshold value for each integer variable to decide whether to round up or down.
+- **Adaptive Selection (AS)** / `AdaptiveSelectionRounding`: Learns a classification strategy to determine rounding directions for integer variables.
+- **Dynamic Thresholding (DT)** / `DynamicThresholdRounding`: Learns a threshold value for each integer variable to decide whether to round up or down.
 
 ### Integer Feasibility Projection
 
@@ -315,12 +305,12 @@ A gradient-based projection iteratively refines infeasible solutions. The figure
 
 <div align="center"> <img src="img/example2.png" alt="Feasibility Projection Iterations" width="40%"/> </div>
 
-By integrating feasibility projection with the correction layers, we extend RC and LT into **RC-P** and **LT-P**, respectively.
+By integrating feasibility projection with the correction layers, we extend AS and DT into **AS-P** and **DT-P**, respectively.
 
 
 ## Performance
 
-Our learning-based methods (RC & LT) achieve comparable or superior performance to exact solvers (EX) while being orders of magnitude faster:
+Our learning-based methods (AS & DT) achieve comparable or superior performance to exact solvers (EX) while being orders of magnitude faster:
 
 <div align="center">
     <img src="img/cq_s100_penalty.png" alt="Penalty Effect on IQP" width="40%"/>
