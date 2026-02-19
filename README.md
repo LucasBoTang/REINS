@@ -71,59 +71,8 @@ y = variable("y", var_types=[
 ])
 ```
 
-### Step 2: Build Relaxation Network
 
-The relaxation network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `RelaxationNode` to integrate it into the pipeline.
-
-```python
-from reins import MLPBnDrop
-from reins.node import RelaxationNode
-
-num_var = 5
-num_ineq = 5
-
-rel_net = MLPBnDrop(
-    insize=num_ineq,
-    outsize=num_var,
-    hsizes=[64] * 4,
-    dropout=0.2,      # dropout rate
-    bnorm=True,       # batch normalization
-)
-
-# data["b"] -> rel_net -> data["x_rel"]
-rel = RelaxationNode(rel_net, ["b"], ["x"])
-```
-
-
-### Step 3: Choose a Rounding Layer
-
-Rounding layers convert continuous relaxations to integer solutions.
-
-```python
-from reins.node.rounding import (
-    StochasticAdaptiveSelectionRounding,
-    DynamicThresholdRounding,
-)
-
-rnd_net = MLPBnDrop(
-    insize=num_ineq + num_var,
-    outsize=num_var,
-    hsizes=[64] * 3,
-)
-
-# Adaptive Selection (AS)
-rounding = StochasticAdaptiveSelectionRounding(
-    vars=x, param_keys=["b"], net=rnd_net, continuous_update=True,
-)
-
-# Dynamic Thresholding (DT)
-rounding = DynamicThresholdRounding(
-    vars=x, param_keys=["b"], net=rnd_net,
-)
-```
-
-
-### Step 4: Define Loss (Objectives + Constraints)
+### Step 2: Define Loss (Objectives + Constraints)
 
 Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`. **Use the same `x` from Step 1** so that the loss and rounding layer share the same variable object.
 
@@ -150,6 +99,58 @@ penalty_weight = 100
 con = penalty_weight * (x @ A.T <= b)
 
 loss = PenaltyLoss(objectives=[obj], constraints=[con])
+```
+
+
+### Step 3: Build Relaxation Network
+
+The relaxation network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `RelaxationNode` to integrate it into the pipeline.
+
+```python
+from reins import MLPBnDrop
+from reins.node import RelaxationNode
+
+num_var = 5
+num_ineq = 5
+
+rel_net = MLPBnDrop(
+    insize=num_ineq,
+    outsize=num_var,
+    hsizes=[64] * 4,
+    dropout=0.2,      # dropout rate
+    bnorm=True,       # batch normalization
+)
+
+# data["b"] -> rel_net -> data["x_rel"]
+rel = RelaxationNode(rel_net, ["b"], ["x"])
+```
+
+
+### Step 4: Choose a Rounding Layer
+
+Rounding layers convert continuous relaxations to integer solutions.
+
+```python
+from reins.node.rounding import (
+    StochasticAdaptiveSelectionRounding,
+    DynamicThresholdRounding,
+)
+
+rnd_net = MLPBnDrop(
+    insize=num_ineq + num_var,
+    outsize=num_var,
+    hsizes=[64] * 3,
+)
+
+# Adaptive Selection (AS)
+rounding = StochasticAdaptiveSelectionRounding(
+    vars=x, param_keys=["b"], net=rnd_net, continuous_update=True,
+)
+
+# Dynamic Thresholding (DT)
+rounding = DynamicThresholdRounding(
+    vars=x, param_keys=["b"], net=rnd_net,
+)
 ```
 
 
@@ -192,7 +193,9 @@ loader_val   = DataLoader(data_val, batch_size=64, shuffle=False,
 
 optimizer = torch.optim.AdamW(solver.problem.parameters(), lr=1e-3)
 solver.train(
-    loader_train, loader_val, optimizer,
+    loader_train,
+    loader_val,
+    optimizer,
     epochs=200,      # max epochs
     patience=20,     # early stopping patience
     warmup=20,       # warmup epochs before early stopping kicks in
@@ -275,7 +278,7 @@ Our learning-based methods (AS & DT) achieve comparable or superior performance 
     <img src="img/rb_s100_penalty.png" alt="Penalty Effect on MIRB" width="40%"/>
 </div>
 
-With properly tuned penalty weights, the approach attains comparable or better objective values within subsecond, while exact solvers require up to 1000 seconds.
+With properly tuned penalty weights, the approach attains comparable or better objective values within sub-seconds, while exact solvers require up to 1000 seconds.
 
 
 ## Reproducibility
