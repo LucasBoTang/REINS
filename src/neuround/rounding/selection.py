@@ -73,7 +73,7 @@ class AdaptiveSelectionRounding(RoundingNode):
                 # Network selects round up or down
                 binary = self.binarize(h_var[:, var.integer_indices])
                 # Mask if already integer
-                binary = self._int_mask(binary, x_int)
+                binary = self._int_mask(binary, x_int, x_floor)
                 x[:, var.integer_indices] = x_floor + binary
 
             # Round binary variables: binarize(h)
@@ -87,12 +87,13 @@ class AdaptiveSelectionRounding(RoundingNode):
             offset += n
         return output
 
-    def _int_mask(self, binary, x):
+    def _int_mask(self, binary, x, x_floor):
         """Mask rounding for values already close to an integer."""
-        frac_floor = x - torch.floor(x)
-        frac_ceil = torch.ceil(x) - x
-        binary[frac_floor < self.tolerance] = 0.0
-        binary[frac_ceil < self.tolerance] = 1.0
+        frac = (x - x_floor).detach()
+        binary = torch.where(frac < self.tolerance,
+                             torch.zeros_like(binary), binary)
+        binary = torch.where(frac > 1.0 - self.tolerance,
+                             torch.ones_like(binary), binary)
         return binary
 
 
