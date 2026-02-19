@@ -8,21 +8,15 @@ import torch
 from neuromancer.system import Node
 
 from reins.node.rounding.functions import DiffFloor
+from reins.variable import TypeVariable
 
 
 class RoundingNode(Node, ABC):
     """
     Base class for differentiable rounding nodes.
 
-    Inherits from neuromancer Node for compatibility with Problem.step().
-    forward() takes a data dict and returns only the output dict
-    {output_key: value}, which Problem merges via dict unpacking.
-
-    Accepts single variable or list of variables. Type metadata
-    is auto-extracted from each variable object.
-
     Args:
-        vars: Variable or list of variables (created by reins.variable).
+        vars: TypeVariable or list of TypeVariables.
         name: Module name.
     """
 
@@ -30,6 +24,13 @@ class RoundingNode(Node, ABC):
         # Normalize single variable to list
         if not isinstance(vars, (list, tuple)):
             vars = [vars]
+
+        # Validate variable types
+        for v in vars:
+            if not isinstance(v, TypeVariable):
+                raise TypeError(
+                    f"Expected TypeVariable, got {type(v).__name__} for key '{getattr(v, 'key', '?')}'."
+                )
 
         # Initialize Node with input/output keys
         input_keys = [v.relaxed.key for v in vars]
@@ -65,29 +66,31 @@ class LearnableRoundingLayer(RoundingNode, ABC):
     """
     Base class for network-based rounding layers.
 
-    Handles common logic: param_keys, net, continuous_update,
-    feature concatenation, offset-based variable loop.
     Subclasses implement _round_integer() and _round_binary().
 
     Args:
-        vars: Variable or list of variables with type metadata.
-        param_keys: List of parameter keys to read from data dict.
-        net: Network mapping [params, vars] to per-variable outputs.
+        callable: Network mapping [params, vars] to per-variable outputs.
+        params: Parameter Variable or list of parameter Variables.
+        vars: TypeVariable or list of TypeVariables with type metadata.
         continuous_update: Whether to update continuous variables (default: False).
         name: Module name.
     """
 
-    def __init__(self, vars, param_keys, net,
+    def __init__(self, callable, params, vars,
                  continuous_update=False, name="learnable_rounding"):
         super().__init__(vars, name)
-        self.param_keys = param_keys
+
+        # Normalize params to list
+        if not isinstance(params, (list, tuple)):
+            params = [params]
+        self.param_keys = [p.key for p in params]
         self.continuous_update = continuous_update
 
         # Extend input keys to include parameter keys
-        self.input_keys = list(param_keys) + self.input_keys
+        self.input_keys = list(self.param_keys) + self.input_keys
 
         # Network and differentiable floor
-        self.net = net
+        self.net = callable
         self.floor = DiffFloor()
 
     def forward(self, data):

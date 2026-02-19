@@ -4,10 +4,10 @@ Unit tests for rounding layers.
 
 import pytest
 import torch
-from types import SimpleNamespace
 from torch import nn
 
 from reins.blocks import MLPBnDrop
+from reins.variable import Variable, TypeVariable, VarType
 from neuromancer.system import Node
 from reins.node.rounding.base import RoundingNode
 from reins.node.rounding.ste import STERounding, StochasticSTERounding
@@ -28,21 +28,11 @@ def seed():
 
 
 def _make_var(key, num_vars, integer_indices=None, binary_indices=None):
-    """Create a mock variable with type metadata for testing."""
-    integer_indices = integer_indices or []
-    binary_indices = binary_indices or []
-    continuous_indices = [
-        i for i in range(num_vars)
-        if i not in integer_indices and i not in binary_indices
-    ]
-    relaxed = SimpleNamespace(key=key + "_rel")
-    return SimpleNamespace(
-        key=key,
-        relaxed=relaxed,
-        num_vars=num_vars,
+    """Create a TypeVariable with type metadata for testing."""
+    return TypeVariable(
+        key, num_vars=num_vars,
         integer_indices=integer_indices,
         binary_indices=binary_indices,
-        continuous_indices=continuous_indices,
     )
 
 
@@ -53,6 +43,13 @@ def _make_net(num_params, num_vars):
         outsize=num_vars,
         hsizes=[16],
     )
+
+
+# ── Parameter Variables ───────────────────────────────────────────────
+
+p = Variable("p")
+p1 = Variable("p1")
+p2 = Variable("p2")
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -120,9 +117,7 @@ class TestRoundingNodeBase:
     def test_input_keys_with_params(self, int_var):
         """Learnable layers should include param_keys in input_keys."""
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         assert layer.input_keys == ["p", "x_rel"]
         assert layer.output_keys == ["x"]
 
@@ -372,7 +367,7 @@ class TestDynamicThresholdRounding:
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(int_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -380,7 +375,7 @@ class TestDynamicThresholdRounding:
     def test_integer_rounding(self, int_var):
         """Integer variables should be rounded."""
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(int_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -391,7 +386,7 @@ class TestDynamicThresholdRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(bin_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [bin_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -401,7 +396,7 @@ class TestDynamicThresholdRounding:
     def test_gradient_flow_through_net(self, int_var):
         """Gradients should flow through network parameters."""
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(int_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -418,16 +413,14 @@ class TestDynamicThresholdRounding:
     def test_has_learnable_params(self, int_var):
         """Should have learnable network parameters."""
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(int_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         params = list(layer.parameters())
         assert len(params) > 0
 
     def test_multi_var(self, multi_vars):
         """Multi-variable with shared network."""
         net = _make_net(4, 5)  # 3 + 2 = 5 total vars
-        layer = DynamicThresholdRounding(
-            multi_vars, param_keys=["p"], net=net
-        )
+        layer = DynamicThresholdRounding(net, [p], multi_vars)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -440,12 +433,10 @@ class TestDynamicThresholdRounding:
         # y: all binary -> 0 or 1
         assert torch.all((result["y"] == 0) | (result["y"] == 1))
 
-    def test_multi_param_keys(self, int_var):
-        """Multiple param_keys should be concatenated."""
+    def test_multi_params(self, int_var):
+        """Multiple params should be concatenated."""
         net = _make_net(6, 3)  # p1=2 + p2=4 = 6
-        layer = DynamicThresholdRounding(
-            int_var, param_keys=["p1", "p2"], net=net
-        )
+        layer = DynamicThresholdRounding(net, [p1, p2], [int_var])
         data = {
             "x_rel": torch.randn(4, 3),
             "p1": torch.randn(4, 2),
@@ -458,8 +449,7 @@ class TestDynamicThresholdRounding:
         """With continuous_update, continuous variables should actually change."""
         net = _make_net(4, 5)
         layer = DynamicThresholdRounding(
-            mixed_var, param_keys=["p"], net=net,
-            continuous_update=True,
+            net, [p], [mixed_var], continuous_update=True,
         )
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
@@ -476,8 +466,7 @@ class TestDynamicThresholdRounding:
         """Without continuous_update, continuous variables should be unchanged."""
         net = _make_net(4, 5)
         layer = DynamicThresholdRounding(
-            mixed_var, param_keys=["p"], net=net,
-            continuous_update=False,
+            net, [p], [mixed_var], continuous_update=False,
         )
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
@@ -492,9 +481,7 @@ class TestDynamicThresholdRounding:
     def test_mixed_types(self, mixed_var):
         """Mixed variable: continuous untouched, integers rounded, binaries 0/1."""
         net = _make_net(4, 5)
-        layer = DynamicThresholdRounding(
-            mixed_var, param_keys=["p"], net=net,
-        )
+        layer = DynamicThresholdRounding(net, [p], [mixed_var])
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
         data = {"x_rel": x_rel, "p": torch.randn(1, 4)}
@@ -511,12 +498,8 @@ class TestDynamicThresholdRounding:
     def test_slope_effect(self, bin_var):
         """Higher slope should produce sharper (closer to 0/1) outputs in train mode."""
         net = _make_net(4, 3)
-        layer_low = DynamicThresholdRounding(
-            bin_var, param_keys=["p"], net=net, slope=1,
-        )
-        layer_high = DynamicThresholdRounding(
-            bin_var, param_keys=["p"], net=net, slope=100,
-        )
+        layer_low = DynamicThresholdRounding(net, [p], [bin_var], slope=1)
+        layer_high = DynamicThresholdRounding(net, [p], [bin_var], slope=100)
         layer_low.train()
         layer_high.train()
         # Batch size >= 2 for BatchNorm
@@ -533,7 +516,7 @@ class TestDynamicThresholdRounding:
 
     def test_batched(self, int_var):
         net = _make_net(4, 3)
-        layer = DynamicThresholdRounding(int_var, param_keys=["p"], net=net)
+        layer = DynamicThresholdRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(16, 3), "p": torch.randn(16, 4)}
         result = layer(data)
         assert result["x"].shape == (16, 3)
@@ -552,9 +535,7 @@ class TestStochasticDynamicThresholdRounding:
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -562,9 +543,7 @@ class TestStochasticDynamicThresholdRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(
-            bin_var, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], [bin_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -574,24 +553,20 @@ class TestStochasticDynamicThresholdRounding:
     def test_train_stochastic(self, int_var):
         """Train mode should produce different results across calls."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
-        p = torch.randn(2, 4)
+        p_data = torch.randn(2, 4)
         results = []
         for _ in range(10):
-            data = {"x_rel": torch.tensor([[1.5, 2.5, 0.5], [0.3, 1.8, 2.1]]), "p": p}
+            data = {"x_rel": torch.tensor([[1.5, 2.5, 0.5], [0.3, 1.8, 2.1]]), "p": p_data}
             results.append(layer(data)["x"])
         assert not all(torch.allclose(results[0], r) for r in results[1:])
 
     def test_gradient_flow(self, int_var):
         """Gradients should flow through Gumbel-Softmax path."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -607,22 +582,18 @@ class TestStochasticDynamicThresholdRounding:
     def test_eval_deterministic(self, int_var):
         """Eval mode should produce deterministic results."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
         layer.eval()
-        p = torch.randn(1, 4)
-        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
-        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        p_data = torch.randn(1, 4)
+        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
+        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
         r1 = layer(data1)["x"]
         r2 = layer(data2)["x"]
         assert torch.allclose(r1, r2)
 
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
-        layer = StochasticDynamicThresholdRounding(
-            multi_vars, param_keys=["p"], net=net
-        )
+        layer = StochasticDynamicThresholdRounding(net, [p], multi_vars)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -641,9 +612,7 @@ class TestAdaptiveSelectionRounding:
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -651,9 +620,7 @@ class TestAdaptiveSelectionRounding:
     def test_integer_rounding(self, int_var):
         """Integer variables should be rounded."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -663,9 +630,7 @@ class TestAdaptiveSelectionRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            bin_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [bin_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -675,9 +640,7 @@ class TestAdaptiveSelectionRounding:
     def test_gradient_flow_through_net(self, int_var):
         """Gradients should flow through network parameters."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -693,18 +656,14 @@ class TestAdaptiveSelectionRounding:
     def test_has_learnable_params(self, int_var):
         """Should have learnable network parameters."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var])
         params = list(layer.parameters())
         assert len(params) > 0
 
     def test_multi_var(self, multi_vars):
         """Multi-variable with shared network."""
         net = _make_net(4, 5)
-        layer = AdaptiveSelectionRounding(
-            multi_vars, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], multi_vars)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -720,8 +679,7 @@ class TestAdaptiveSelectionRounding:
         """With continuous_update, continuous variables should actually change."""
         net = _make_net(4, 5)
         layer = AdaptiveSelectionRounding(
-            mixed_var, param_keys=["p"], net=net,
-            continuous_update=True,
+            net, [p], [mixed_var], continuous_update=True,
         )
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
@@ -738,8 +696,7 @@ class TestAdaptiveSelectionRounding:
         """Without continuous_update, continuous variables should be unchanged."""
         net = _make_net(4, 5)
         layer = AdaptiveSelectionRounding(
-            mixed_var, param_keys=["p"], net=net,
-            continuous_update=False,
+            net, [p], [mixed_var], continuous_update=False,
         )
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
@@ -754,9 +711,7 @@ class TestAdaptiveSelectionRounding:
     def test_int_mask_near_integer_floor(self, int_var):
         """Values very close to an integer (from above) should round down."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net, tolerance=1e-3,
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], tolerance=1e-3)
         layer.eval()
         # 2.0001 has frac ~0.0001 < tolerance -> forced to floor (2.0)
         data = {
@@ -771,9 +726,7 @@ class TestAdaptiveSelectionRounding:
     def test_int_mask_near_integer_ceil(self, int_var):
         """Values very close to the next integer (from below) should round up."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net, tolerance=1e-3,
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], tolerance=1e-3)
         layer.eval()
         # 2.9999 has frac ~0.9999 > 1-tolerance -> forced to ceil (3.0)
         data = {
@@ -788,9 +741,7 @@ class TestAdaptiveSelectionRounding:
     def test_int_mask_not_triggered_midrange(self, int_var):
         """Values far from integers should NOT be affected by mask."""
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net, tolerance=1e-3,
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], tolerance=1e-3)
         layer.eval()
         # 2.5 has frac=0.5, well within (tolerance, 1-tolerance) -> network decides
         data = {
@@ -804,9 +755,7 @@ class TestAdaptiveSelectionRounding:
 
     def test_batched(self, int_var):
         net = _make_net(4, 3)
-        layer = AdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = AdaptiveSelectionRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(16, 3), "p": torch.randn(16, 4)}
         result = layer(data)
         assert result["x"].shape == (16, 3)
@@ -825,9 +774,7 @@ class TestStochasticAdaptiveSelectionRounding:
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -835,9 +782,7 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(
-            bin_var, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], [bin_var])
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -847,24 +792,20 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_train_stochastic(self, int_var):
         """Train mode should produce different results across calls."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
-        p = torch.randn(2, 4)
+        p_data = torch.randn(2, 4)
         results = []
         for _ in range(10):
-            data = {"x_rel": torch.tensor([[1.5, 2.5, 0.5], [0.3, 1.8, 2.1]]), "p": p}
+            data = {"x_rel": torch.tensor([[1.5, 2.5, 0.5], [0.3, 1.8, 2.1]]), "p": p_data}
             results.append(layer(data)["x"])
         assert not all(torch.allclose(results[0], r) for r in results[1:])
 
     def test_gradient_flow(self, int_var):
         """Gradients should flow through Gumbel-Softmax path."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -880,22 +821,18 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_eval_deterministic(self, int_var):
         """Eval mode should produce deterministic results."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(
-            int_var, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
         layer.eval()
-        p = torch.randn(1, 4)
-        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
-        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p}
+        p_data = torch.randn(1, 4)
+        data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
+        data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
         r1 = layer(data1)["x"]
         r2 = layer(data2)["x"]
         assert torch.allclose(r1, r2)
 
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
-        layer = StochasticAdaptiveSelectionRounding(
-            multi_vars, param_keys=["p"], net=net
-        )
+        layer = StochasticAdaptiveSelectionRounding(net, [p], multi_vars)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),

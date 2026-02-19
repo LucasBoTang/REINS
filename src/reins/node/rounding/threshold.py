@@ -16,18 +16,18 @@ class DynamicThresholdRounding(LearnableRoundingLayer):
     problem parameters and relaxed solutions.
 
     Args:
-        vars: Variable or list of variables with type metadata.
-        param_keys: List of parameter keys to read from data dict.
-        net: Network mapping [params, vars] to per-variable outputs.
+        callable: Network mapping [params, vars] to per-variable outputs.
+        params: Parameter Variable or list of parameter Variables.
+        vars: TypeVariable or list of TypeVariables with type metadata.
         continuous_update: Whether to update continuous variables (default: False).
         slope: Slope for sigmoid-smoothed binarization (default: 10).
         name: Module name.
     """
 
-    def __init__(self, vars, param_keys, net,
+    def __init__(self, callable, params, vars,
                  continuous_update=False, slope=10,
                  name="dynamic_threshold_rounding"):
-        super().__init__(vars, param_keys, net, continuous_update, name)
+        super().__init__(callable, params, vars, continuous_update, name)
         # Sigmoid-smoothed threshold binarization
         self.threshold_binarize = ThresholdBinarize(slope=slope)
 
@@ -49,18 +49,18 @@ class StochasticDynamicThresholdRounding(DynamicThresholdRounding):
     for stochastic training and deterministic evaluation.
 
     Args:
-        vars: Variable or list of variables with type metadata.
-        param_keys: List of parameter keys to read from data dict.
-        net: Network mapping [params, vars] to per-variable outputs.
+        callable: Network mapping [params, vars] to per-variable outputs.
+        params: Parameter Variable or list of parameter Variables.
+        vars: TypeVariable or list of TypeVariables with type metadata.
         continuous_update: Whether to update continuous variables (default: False).
         temperature: Gumbel-Softmax temperature (default: 1.0).
         name: Module name.
     """
 
-    def __init__(self, vars, param_keys, net,
+    def __init__(self, callable, params, vars,
                  continuous_update=False, temperature=1.0,
                  name="stochastic_dynamic_threshold_rounding"):
-        super().__init__(vars, param_keys, net,
+        super().__init__(callable, params, vars,
                          continuous_update=continuous_update,
                          name=name)
         # Replace sigmoid-smoothed binarization with Gumbel-Softmax version

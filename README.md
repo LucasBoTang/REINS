@@ -39,9 +39,9 @@ pip install -e .
 
 This tutorial walks through building a learnable solver for a parametric integer quadratic program:
 
-$$\min_{x} \quad \frac{1}{2} x^\top Q x + p^\top x \quad \text{s.t.} \quad Ax \leq b, \quad x \in \mathbb{Z}^n$$
+$$\min_{x} \quad \frac{1}{2} x^\top Q x + c^\top x \quad \text{s.t.} \quad Ax \leq b, \quad x \in \mathbb{Z}^n$$
 
-Here $Q$, $p$, $A$ are fixed problem coefficients, while $b$ is the **varying parameter**. Different values of $b$ define different problem instances. The goal of REINS is to learn a neural network mapping $b \mapsto x^*$ so that, given any new $b$, the network efficiently predicts a high-quality integer solution.
+Here $Q$, $c$, $A$ are fixed problem coefficients, while $b$ is the **varying parameter**. Different values of $b$ define different problem instances. The goal of REINS is to learn a neural network mapping $b \mapsto x^*$ so that, given any new $b$, the network efficiently predicts a high-quality integer solution.
 
 The training pipeline:
 1. **Sample** a dataset of parameter values $\{b^{(i)}\}$ (no optimal solutions needed)
@@ -77,30 +77,26 @@ b = Variable("b")
 
 ### Step 2: Define Loss (Objectives + Constraints)
 
-Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`. **Use the same `x` from Step 1** so that the loss and rounding layer share the same variable object.
+Define objectives and constraints symbolically via operator overloading, then combine into a `PenaltyLoss`. **Use the same `x` and `b` from Step 1** so that the loss and rounding layer share the same variable objects.
 
 ```python
 import torch
 import numpy as np
-from reins import Variable, PenaltyLoss
+from reins import PenaltyLoss
 
 # Fixed problem coefficients
 rng = np.random.RandomState(17)
 Q = torch.from_numpy(0.01 * np.diag(rng.random(size=num_var))).float()
-p = torch.from_numpy(0.1 * rng.random(num_var)).float()
+c = torch.from_numpy(0.1 * rng.random(num_var)).float()
 A = torch.from_numpy(rng.normal(scale=0.1, size=(num_ineq, num_var))).float()
 
-# Use x.variable from Step 1 for computation graph expressions
-b = Variable("b")
-
-# Objective: minimize (1/2) x^T Q x + p^T x
-x_expr = x.variable
-f = 0.5 * torch.sum((x_expr @ Q) * x_expr, dim=1) + torch.sum(p * x_expr, dim=1)
+# Objective: minimize (1/2) x^T Q x + c^T x
+f = 0.5 * torch.sum((x @ Q) * x, dim=1) + torch.sum(c * x, dim=1)
 obj = f.minimize(weight=1.0, name="obj")
 
 # Constraint: Ax <= b
 penalty_weight = 100
-con = penalty_weight * (x_expr @ A.T <= b)
+con = penalty_weight * (x @ A.T <= b)
 
 loss = PenaltyLoss(objectives=[obj], constraints=[con])
 ```
@@ -126,7 +122,7 @@ rel_net = MLPBnDrop(
 )
 
 # data["b"] -> rel_net -> data["x_rel"]
-rel = RelaxationNode(rel_net, ["b"], ["x"])
+rel = RelaxationNode(rel_net, [b], [x])
 ```
 
 
@@ -148,12 +144,12 @@ rnd_net = MLPBnDrop(
 
 # Adaptive Selection (AS)
 rounding = StochasticAdaptiveSelectionRounding(
-    vars=x, param_keys=["b"], net=rnd_net, continuous_update=True,
+    rnd_net, [b], [x], continuous_update=True,
 )
 
 # Dynamic Thresholding (DT)
 rounding = DynamicThresholdRounding(
-    vars=x, param_keys=["b"], net=rnd_net,
+    rnd_net, [b], [x],
 )
 ```
 

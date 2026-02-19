@@ -44,7 +44,7 @@ def _coefficients(num_var, num_ineq):
     return Q, p, A
 
 
-def build_loss(num_var, num_ineq, penalty_weight, device="cpu", relaxed=False):
+def build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cpu", relaxed=False):
     """
     Build PenaltyLoss for the nonconvex problem.
 
@@ -52,15 +52,15 @@ def build_loss(num_var, num_ineq, penalty_weight, device="cpu", relaxed=False):
     s.t. A(d)x <= b  where A(d) perturbs col 0 by +d, col 1 by -d
 
     Args:
+        x: TypeVariable for the decision variable.
+        b: Variable for the constraint RHS parameter.
+        d: Variable for the constraint perturbation parameter.
         relaxed: If True, loss expression uses x.relaxed (reads "x_rel").
 
     Returns:
-        (PenaltyLoss, x) where x is the typed symbolic variable.
+        PenaltyLoss instance.
     """
-    x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
-    b = Variable("b")
-    d = Variable("d")
-    x_expr = x.relaxed if relaxed else x.variable
+    x_expr = x.relaxed if relaxed else x
     Q, p, A = _coefficients(num_var, num_ineq)
     Q, p, A = Q.to(device), p.to(device), A.to(device)
     # objective (nonconvex due to sin)
@@ -70,7 +70,7 @@ def build_loss(num_var, num_ineq, penalty_weight, device="cpu", relaxed=False):
     lhs = x_expr @ A.T + d * (x_expr[:, [0]] - x_expr[:, [1]])
     con = penalty_weight * (lhs <= b)
     con.name = "con"
-    return PenaltyLoss(objectives=[obj], constraints=[con]), x
+    return PenaltyLoss(objectives=[obj], constraints=[con])
 
 
 def run_EX(loader_test, config):
@@ -262,17 +262,20 @@ def run_AS(loader_train, loader_test, loader_val, config):
     lr = config.lr
     penalty_weight = config.penalty
     # Build loss and get typed variable
-    loss, x = build_loss(num_var, num_ineq, penalty_weight, device="cuda")
+    x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
+    b = Variable("b")
+    d = Variable("d")
+    loss = build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
                           nonlin=nn.ReLU)
-    rel= RelaxationNode(rel_func, ["b", "d"], ["x"], name="relaxation")
+    rel= RelaxationNode(rel_func, [b, d], [x], name="relaxation")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=num_ineq * 2 + num_var, outsize=num_var,
                         hsizes=[hsize] * hlayers_rnd)
     rnd = StochasticAdaptiveSelectionRounding(
-        vars=x, param_keys=["b", "d"], net=rnd_net, continuous_update=True)
+        rnd_net, [b, d], [x], continuous_update=True)
     # Set up solver
     solver = LearnableSolver(rel, rnd, loss)
     # Set up optimizer
@@ -308,17 +311,20 @@ def run_DT(loader_train, loader_test, loader_val, config):
     lr = config.lr
     penalty_weight = config.penalty
     # Build loss and get typed variable
-    loss, x = build_loss(num_var, num_ineq, penalty_weight, device="cuda")
+    x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
+    b = Variable("b")
+    d = Variable("d")
+    loss = build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
                           nonlin=nn.ReLU)
-    rel= RelaxationNode(rel_func, ["b", "d"], ["x"], name="relaxation")
+    rel= RelaxationNode(rel_func, [b, d], [x], name="relaxation")
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=num_ineq * 2 + num_var, outsize=num_var,
                         hsizes=[hsize] * hlayers_rnd)
     rnd = DynamicThresholdRounding(
-        vars=x, param_keys=["b", "d"], net=rnd_net, continuous_update=True)
+        rnd_net, [b, d], [x], continuous_update=True)
     # Set up solver
     solver = LearnableSolver(rel, rnd, loss)
     # Set up optimizer
@@ -353,14 +359,17 @@ def run_RS(loader_train, loader_test, loader_val, config):
     lr = config.lr
     penalty_weight = config.penalty
     # Build loss and get typed variable
-    loss, x = build_loss(num_var, num_ineq, penalty_weight, device="cuda")
+    x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
+    b = Variable("b")
+    d = Variable("d")
+    loss = build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
                           nonlin=nn.ReLU)
-    rel= RelaxationNode(rel_func, ["b", "d"], ["x"], name="relaxation")
+    rel= RelaxationNode(rel_func, [b, d], [x], name="relaxation")
     # Create rounding operator
-    rnd = StochasticSTERounding(vars=x)
+    rnd = StochasticSTERounding([x])
     # Set up solver
     solver = LearnableSolver(rel, rnd, loss)
     # Set up optimizer
@@ -396,12 +405,15 @@ def run_LR(loader_train, loader_test, loader_val, config):
     lr = config.lr
     penalty_weight = config.penalty
     # Build loss (relaxed: loss reads x_rel directly, no rounding layer)
-    loss, _ = build_loss(num_var, num_ineq, penalty_weight, device="cuda", relaxed=True)
+    x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
+    b = Variable("b")
+    d = Variable("d")
+    loss = build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cuda", relaxed=True)
     # Create solution mapping network (no rounding layer)
     rel_func = MLPBnDrop(insize=num_ineq * 2, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
                           nonlin=nn.ReLU)
-    rel= RelaxationNode(rel_func, ["b", "d"], ["x"], name="relaxation")
+    rel= RelaxationNode(rel_func, [b, d], [x], name="relaxation")
     # Set up problem and train
     problem = Problem(nodes=[rel], loss=loss)
     problem.to("cuda")

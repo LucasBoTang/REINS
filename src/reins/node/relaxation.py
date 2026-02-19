@@ -12,27 +12,29 @@ class RelaxationNode(Node):
 
     Args:
         callable: Network whose output dim equals sum of variable sizes.
-        input_keys: Parameter keys to read from data dict.
-        output_keys: Variable key (str) or list of variable keys.
-            Output keys are auto-appended with "_rel".
+        params: Parameter Variable or list of parameter Variables.
+        vars: Decision Variable or list of decision Variables.
         sizes: Split sizes for multi-variable output.
         name: Module name.
     """
 
-    def __init__(self, callable, input_keys, output_keys, sizes=None, name="relaxation"):
-        # Normalize output keys
-        if isinstance(output_keys, str):
-            output_keys = [output_keys]
+    def __init__(self, callable, params, vars, sizes=None, name="relaxation"):
+        # Normalize to lists
+        if not isinstance(params, (list, tuple)):
+            params = [params]
+        if not isinstance(vars, (list, tuple)):
+            vars = [vars]
 
-        # Output keys are auto-appended with "_rel"
-        output_keys = [k + "_rel" for k in output_keys]
+        # Derive keys from Variable objects
+        param_keys = [p.key for p in params]
+        output_keys = [v.key + "_rel" for v in vars]
 
         # Validate sizes for multi-variable output
         if len(output_keys) > 1 and sizes is None:
             raise ValueError("sizes is required for multi-variable output.")
 
         # Initialize base class
-        super().__init__(callable, input_keys, output_keys, name=name)
+        super().__init__(callable, param_keys, output_keys, name=name)
         self.sizes = sizes
 
         # Validate sizes against network output dimension at init time

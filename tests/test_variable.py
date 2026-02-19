@@ -113,19 +113,14 @@ class TestTypeVariableProperties:
         x = TypeVariable("x", num_vars=3)
         assert x.key == "x"
 
-    def test_variable_is_neuromancer(self):
-        x = TypeVariable("x", num_vars=3, integer_indices=[0])
-        assert isinstance(x.variable, Variable)
-        assert x.variable.key == "x"
-
-    def test_relaxed_is_neuromancer(self):
+    def test_relaxed_is_variable(self):
         x = TypeVariable("x", num_vars=3, integer_indices=[0])
         assert isinstance(x.relaxed, Variable)
         assert x.relaxed.key == "x_rel"
 
-    def test_variable_and_relaxed_are_different(self):
+    def test_self_and_relaxed_are_different(self):
         x = TypeVariable("x", num_vars=3)
-        assert x.variable is not x.relaxed
+        assert x is not x.relaxed
 
     def test_repr(self):
         x = TypeVariable("x", num_vars=2, var_types=VarType.INTEGER)
@@ -196,12 +191,12 @@ class TestTypeVariableErrors:
 
 
 class TestTypeVariableComputationGraph:
-    """Test that TypeVariable's .variable and .relaxed work in computation graphs."""
+    """Test that TypeVariable works directly in computation graphs."""
 
-    def test_variable_arithmetic(self):
+    def test_arithmetic(self):
         x = TypeVariable("x", num_vars=3, integer_indices=[0, 1, 2])
         y = nm.variable("y")
-        z = x.variable + y
+        z = x + y
         data = {"x": torch.tensor([1.0, 2.0, 3.0]),
                 "y": torch.tensor([10.0, 20.0, 30.0])}
         result = z(data)
@@ -214,10 +209,10 @@ class TestTypeVariableComputationGraph:
         result = y(data)
         assert torch.allclose(result, torch.tensor([1.5, 1.7]))
 
-    def test_variable_matmul(self):
+    def test_matmul(self):
         x = TypeVariable("x", num_vars=3, var_types=VarType.INTEGER)
         W = torch.randn(3, 2)
-        z = x.variable @ W
+        z = x @ W
         data = {"x": torch.ones(1, 3)}
         result = z(data)
         assert result.shape == (1, 2)
@@ -225,13 +220,13 @@ class TestTypeVariableComputationGraph:
     def test_constraint_creation(self):
         from neuromancer.constraint import Constraint
         x = TypeVariable("x", num_vars=3, var_types=VarType.INTEGER)
-        con = x.variable <= 5.0
+        con = x <= 5.0
         assert isinstance(con, Constraint)
 
     def test_objective_creation(self):
         from neuromancer.constraint import Objective
         x = TypeVariable("x", num_vars=3, var_types=VarType.INTEGER)
-        obj = (x.variable ** 2).minimize()
+        obj = (x ** 2).minimize()
         assert isinstance(obj, Objective)
 
 
