@@ -281,8 +281,7 @@ def run_AS(loader_train, loader_test, loader_val, config):
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=3 * num_blocks + 1, outsize=2 * num_blocks,
                         hsizes=[hsize] * hlayers_rnd)
-    rnd = StochasticAdaptiveSelectionRounding(
-        rnd_net, [p, a], [x, y], continuous_update=True)
+    rnd = StochasticAdaptiveSelectionRounding(rnd_net, [p, a], [x, y], continuous_update=True)
     # Set up solver
     solver = LearnableSolver(rel, rnd, loss)
     # Set up optimizer
@@ -331,8 +330,7 @@ def run_DT(loader_train, loader_test, loader_val, config):
     # Create rounding network and operator
     rnd_net = MLPBnDrop(insize=3 * num_blocks + 1, outsize=2 * num_blocks,
                         hsizes=[hsize] * hlayers_rnd)
-    rnd = DynamicThresholdRounding(
-        rnd_net, [p, a], [x, y], continuous_update=True)
+    rnd = DynamicThresholdRounding(rnd_net, [p, a], [x, y], continuous_update=True)
     # Set up solver
     solver = LearnableSolver(rel, rnd, loss)
     # Set up optimizer
