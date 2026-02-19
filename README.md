@@ -99,14 +99,6 @@ smap = SmapNode(smap_net, ["b"], ["x"], name="smap")
 
 Rounding layers convert continuous relaxations to integer solutions.
 
-**Non-learnable (baseline):**
-```python
-from reins.node.rounding import STERounding
-
-rounding = STERounding(x)
-```
-
-**Learnable (recommended):**
 ```python
 from reins.node.rounding import (
     StochasticAdaptiveSelectionRounding,
