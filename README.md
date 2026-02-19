@@ -65,10 +65,11 @@ x = TypeVariable("x", num_vars=5, integer_indices=[0, 1, 2, 3, 4])
 # Mixed-integer: indices 0,1 are integer, index 2 is binary, rest continuous
 y = TypeVariable("y", num_vars=5, integer_indices=[0, 1], binary_indices=[2])
 # Equivalent using explicit type list
-y = TypeVariable("y", var_types=[
+var_types=[
     VarType.INTEGER, VarType.INTEGER, VarType.BINARY,
     VarType.CONTINUOUS, VarType.CONTINUOUS,
-])
+]
+y = TypeVariable("y", var_types=var_types)
 
 # Parameter variable (continuous, no type metadata)
 b = Variable("b")
