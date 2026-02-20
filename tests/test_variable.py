@@ -261,6 +261,53 @@ class TestTypeVariableNodeIntegration:
         assert x.key in data
 
 
+class TestConstraintOperators:
+    """Test Constraint operator overloads (__xor__, __mul__, __rmul__)."""
+
+    def test_weight_mul(self):
+        """Constraint * weight should scale the weight."""
+        from reins.variable import Variable, Constraint
+        x = Variable("x")
+        con = x <= 5.0
+        weighted = con * 3.0
+        assert isinstance(weighted, Constraint)
+        assert weighted.weight == pytest.approx(3.0)
+
+    def test_weight_rmul(self):
+        """weight * Constraint should scale the weight."""
+        from reins.variable import Variable, Constraint
+        x = Variable("x")
+        con = x <= 5.0
+        weighted = 2.0 * con
+        assert isinstance(weighted, Constraint)
+        assert weighted.weight == pytest.approx(2.0)
+
+    def test_weight_chained(self):
+        """Chained multiplication should accumulate weights."""
+        from reins.variable import Variable
+        x = Variable("x")
+        con = 2.0 * (x <= 5.0) * 3.0
+        assert con.weight == pytest.approx(6.0)
+
+    def test_xor_norm(self):
+        """con ^ norm should change the comparator norm."""
+        from reins.variable import Variable, Constraint
+        x = Variable("x")
+        con = x <= 5.0
+        normed = con ^ 1
+        assert isinstance(normed, Constraint)
+
+    def test_comparator_types(self):
+        """All comparison operators should produce Constraint."""
+        from reins.variable import Variable, Constraint
+        x = Variable("x")
+        assert isinstance(x <= 5.0, Constraint)
+        assert isinstance(x < 5.0, Constraint)
+        assert isinstance(x >= 5.0, Constraint)
+        assert isinstance(x > 5.0, Constraint)
+        assert isinstance(x == 5.0, Constraint)
+
+
 class TestTypeVariableExport:
     """Test that VarType and TypeVariable are exported from reins."""
 
