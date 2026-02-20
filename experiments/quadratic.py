@@ -115,8 +115,10 @@ def run_EX(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    os.makedirs("result", exist_ok=True)
-    df.to_csv(f"result/cq_exact_{num_var}-{num_ineq}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/cq_exact_{num_var}-{num_ineq}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_exact_{num_var}-{num_ineq}.csv")
 
 
 def run_RR(loader_test, config):
@@ -172,8 +174,10 @@ def run_RR(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    os.makedirs("result", exist_ok=True)
-    df.to_csv(f"result/cq_rel_{num_var}-{num_ineq}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/cq_rel_{num_var}-{num_ineq}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_rel_{num_var}-{num_ineq}.csv")
 
 
 def run_N1(loader_test, config):
@@ -227,8 +231,10 @@ def run_N1(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    os.makedirs("result", exist_ok=True)
-    df.to_csv(f"result/cq_root_{num_var}-{num_ineq}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/cq_root_{num_var}-{num_ineq}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_root_{num_var}-{num_ineq}.csv")
 
 
 def run_AS(loader_train, loader_test, loader_val, config):
@@ -271,11 +277,14 @@ def run_AS(loader_train, loader_test, loader_val, config):
     model = quadratic(num_var, num_ineq, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/cq_cls{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_cls{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_cls{penalty_weight}_{num_var}-{num_ineq}-p.csv")
     else:
-        df.to_csv(f"result/cq_cls{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_cls{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_cls{penalty_weight}_{num_var}-{num_ineq}.csv")
 
 
 def run_DT(loader_train, loader_test, loader_val, config):
@@ -318,11 +327,14 @@ def run_DT(loader_train, loader_test, loader_val, config):
     model = quadratic(num_var, num_ineq, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/cq_thd{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_thd{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_thd{penalty_weight}_{num_var}-{num_ineq}-p.csv")
     else:
-        df.to_csv(f"result/cq_thd{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_thd{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_thd{penalty_weight}_{num_var}-{num_ineq}.csv")
 
 
 def run_RS(loader_train, loader_test, loader_val, config):
@@ -362,11 +374,14 @@ def run_RS(loader_train, loader_test, loader_val, config):
     model = quadratic(num_var, num_ineq, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/cq_ste{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_ste{penalty_weight}_{num_var}-{num_ineq}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_ste{penalty_weight}_{num_var}-{num_ineq}-p.csv")
     else:
-        df.to_csv(f"result/cq_ste{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/cq_ste{penalty_weight}_{num_var}-{num_ineq}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_ste{penalty_weight}_{num_var}-{num_ineq}.csv")
 
 
 def run_LR(loader_train, loader_test, loader_val, config):
@@ -441,8 +456,10 @@ def run_LR(loader_train, loader_test, loader_val, config):
     time.sleep(1)
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
-    os.makedirs("result", exist_ok=True)
-    df.to_csv(f"result/cq_lrn{config.penalty}_{num_var}-{num_ineq}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/cq_lrn{config.penalty}_{num_var}-{num_ineq}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/cq_lrn{config.penalty}_{num_var}-{num_ineq}.csv")
 
 def evaluate(solver, model, loader_test):
     """

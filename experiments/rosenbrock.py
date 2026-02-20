@@ -114,7 +114,6 @@ def run_EX(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    os.makedirs("result", exist_ok=True)
     df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
@@ -122,7 +121,10 @@ def run_EX(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    df.to_csv(f"result/rb_exact_{num_blocks}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/rb_exact_{num_blocks}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_exact_{num_blocks}.csv")
 
 
 def run_RR(loader_test, config):
@@ -172,7 +174,6 @@ def run_RR(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    os.makedirs("result", exist_ok=True)
     df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
@@ -180,7 +181,10 @@ def run_RR(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    df.to_csv(f"result/rb_rel_{num_blocks}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/rb_rel_{num_blocks}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_rel_{num_blocks}.csv")
 
 
 def run_N1(loader_test, config):
@@ -228,7 +232,6 @@ def run_N1(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    os.makedirs("result", exist_ok=True)
     df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
@@ -236,7 +239,10 @@ def run_N1(loader_test, config):
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
-    df.to_csv(f"result/rb_root_{num_blocks}.csv")
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
+    df[["Param", "Sol"]].to_csv(f"result/sol/rb_root_{num_blocks}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_root_{num_blocks}.csv")
 
 
 def run_AS(loader_train, loader_test, loader_val, config):
@@ -281,11 +287,14 @@ def run_AS(loader_train, loader_test, loader_val, config):
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/rb_cls{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df.to_csv(f"result/rb_cls{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}.csv")
 
 
 def run_DT(loader_train, loader_test, loader_val, config):
@@ -330,11 +339,14 @@ def run_DT(loader_train, loader_test, loader_val, config):
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/rb_thd{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df.to_csv(f"result/rb_thd{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}.csv")
 
 
 def run_RS(loader_train, loader_test, loader_val, config):
@@ -376,11 +388,14 @@ def run_RS(loader_train, loader_test, loader_val, config):
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df.to_csv(f"result/rb_ste{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}-p.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df.to_csv(f"result/rb_ste{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}.csv")
+        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}.csv")
 
 
 def run_LR(loader_train, loader_test, loader_val, config):
@@ -461,10 +476,12 @@ def run_LR(loader_train, loader_test, loader_val, config):
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     time.sleep(1)
-    os.makedirs("result", exist_ok=True)
+    os.makedirs("result/sol", exist_ok=True)
+    os.makedirs("result/stat", exist_ok=True)
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
-    df.to_csv(f"result/rb_lrn{config.penalty}_{num_blocks}.csv")
+    df[["Param", "Sol"]].to_csv(f"result/sol/rb_lrn{config.penalty}_{num_blocks}.csv")
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_lrn{config.penalty}_{num_blocks}.csv")
 
 
 def evaluate(solver, model, loader_test):
