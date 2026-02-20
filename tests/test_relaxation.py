@@ -198,6 +198,86 @@ class TestRelaxationNodeForward:
         assert torch.allclose(result["y_rel"], full_output[:, 5:])
 
 
+# ── TestRelaxationNodeNumerical ────────────────────────────────────────────
+
+class TestRelaxationNodeNumerical:
+    """Verify exact numerical output with fixed-weight networks."""
+
+    @staticmethod
+    def _fixed_net(in_features, out_features, bias_values):
+        """Create a Linear layer with zero weights and known bias."""
+        net = nn.Linear(in_features, out_features)
+        nn.init.zeros_(net.weight)
+        with torch.no_grad():
+            net.bias.copy_(torch.tensor(bias_values, dtype=torch.float32))
+        return net
+
+    def test_single_var_exact_output(self):
+        """Zero-weight net outputs bias regardless of input."""
+        net = self._fixed_net(4, 3, [1.0, 2.0, 3.0])
+        rel = RelaxationNode(net, [_var("b")], [_var("x")])
+        data = {"b": torch.randn(2, 4)}
+        result = rel(data)
+        expected = torch.tensor([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
+        assert torch.allclose(result["x_rel"], expected)
+
+    def test_multi_var_split_exact(self):
+        """Multi-output split produces exact bias slices."""
+        net = self._fixed_net(4, 5, [1.0, 2.0, 3.0, 4.0, 5.0])
+        rel = RelaxationNode(net, [_var("b")], [_var("x"), _var("y")], sizes=[3, 2])
+        data = {"b": torch.zeros(1, 4)}
+        result = rel(data)
+        assert torch.allclose(result["x_rel"], torch.tensor([[1.0, 2.0, 3.0]]))
+        assert torch.allclose(result["y_rel"], torch.tensor([[4.0, 5.0]]))
+
+    def test_multi_var_three_way_split(self):
+        """Three-variable split with uneven sizes."""
+        net = self._fixed_net(2, 7, [10., 20., 30., 40., 50., 60., 70.])
+        rel = RelaxationNode(
+            net, [_var("b")],
+            [_var("a"), _var("b_out"), _var("c")],
+            sizes=[2, 3, 2],
+        )
+        data = {"b": torch.zeros(1, 2)}
+        result = rel(data)
+        assert torch.allclose(result["a_rel"], torch.tensor([[10., 20.]]))
+        assert torch.allclose(result["b_out_rel"], torch.tensor([[30., 40., 50.]]))
+        assert torch.allclose(result["c_rel"], torch.tensor([[60., 70.]]))
+
+    def test_multi_input_concat_exact(self):
+        """Network with two inputs: weight=I should sum input + bias."""
+        net = nn.Linear(3, 2)
+        with torch.no_grad():
+            net.weight.copy_(torch.tensor([[1., 0., 0.], [0., 1., 0.]]))
+            net.bias.copy_(torch.tensor([10., 20.]))
+        rel = RelaxationNode(net, [_var("p"), _var("q")], [_var("x")])
+        data = {"p": torch.tensor([[1.0, 2.0]]), "q": torch.tensor([[3.0]])}
+        result = rel(data)
+        # concat [1, 2, 3] @ W^T + b = [1*1+2*0+3*0+10, 1*0+2*1+3*0+20] = [11, 22]
+        assert torch.allclose(result["x_rel"], torch.tensor([[11., 22.]]))
+
+    def test_auto_derived_split_exact(self):
+        """TypeVariable auto-derived sizes produce correct split values."""
+        net = self._fixed_net(2, 6, [1., 2., 3., 4., 5., 6.])
+        rel = RelaxationNode(
+            net, [_var("b")],
+            [_typed_var("x", 4), _typed_var("y", 2)],
+        )
+        data = {"b": torch.zeros(1, 2)}
+        result = rel(data)
+        assert torch.allclose(result["x_rel"], torch.tensor([[1., 2., 3., 4.]]))
+        assert torch.allclose(result["y_rel"], torch.tensor([[5., 6.]]))
+
+    def test_batch_exact(self):
+        """Each sample in batch gets the same bias output."""
+        net = self._fixed_net(2, 3, [7., 8., 9.])
+        rel = RelaxationNode(net, [_var("b")], [_var("x")])
+        data = {"b": torch.randn(5, 2)}
+        result = rel(data)
+        for i in range(5):
+            assert torch.allclose(result["x_rel"][i], torch.tensor([7., 8., 9.]))
+
+
 # ── TestRelaxationNodeExport ────────────────────────────────────────────────
 
 class TestRelaxationNodeExport:

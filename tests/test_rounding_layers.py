@@ -969,6 +969,37 @@ class TestNumericalDynamicThreshold:
         expected = torch.tensor([[2.0, 3.0]])
         assert torch.allclose(result, expected)
 
+    def test_continuous_update_exact(self):
+        """continuous_update=True: continuous vars get network adjustment added."""
+        # idx 0: continuous, idx 1: integer
+        var = _make_var("x", 2, integer_indices=[1])
+        net = self._fixed_net(2, [0.5, 0.0])
+        layer = DynamicThresholdRounding(net, [p], [var],
+                                         continuous_update=True, slope=10)
+        layer.eval()
+        # Network output = bias = [0.5, 0.0]
+        # Continuous idx 0: x + h = 1.0 + 0.5 = 1.5
+        # Integer idx 1: floor(2.7)=2, thresh=sigmoid(0)=0.5, frac=0.7>=0.5 -> 1
+        #   result: 2+1 = 3.0
+        data = {"x_rel": torch.tensor([[1.0, 2.7]]), "p": torch.randn(1, 4)}
+        result = layer(data)["x"]
+        expected = torch.tensor([[1.5, 3.0]])
+        assert torch.allclose(result, expected)
+
+    def test_stochastic_matches_deterministic_eval(self):
+        """StochasticDynamicThreshold eval should match DynamicThreshold eval."""
+        var = _make_var("x", 2, integer_indices=[0, 1])
+        net_d = self._fixed_net(2, [0.0, 0.0])
+        net_s = self._fixed_net(2, [0.0, 0.0])
+        det = DynamicThresholdRounding(net_d, [p], [var], slope=10)
+        sto = StochasticDynamicThresholdRounding(net_s, [p], [var])
+        det.eval()
+        sto.eval()
+        data_d = {"x_rel": torch.tensor([[1.3, 2.7]]), "p": torch.zeros(1, 4)}
+        data_s = {"x_rel": torch.tensor([[1.3, 2.7]]), "p": torch.zeros(1, 4)}
+        # Both use (frac >= threshold) in eval -> same result
+        assert torch.allclose(det(data_d)["x"], sto(data_s)["x"])
+
 
 # ── TestNumericalAdaptiveSelection ───────────────────────────────────
 
@@ -1025,6 +1056,82 @@ class TestNumericalAdaptiveSelection:
         result = layer(data)["x"]
         expected = torch.tensor([[2.0, 3.0]])
         assert torch.allclose(result, expected)
+
+    def test_continuous_update_exact(self):
+        """continuous_update=True: continuous vars get network adjustment added."""
+        # idx 0: continuous, idx 1: integer
+        var = _make_var("x", 2, integer_indices=[1])
+        net = self._fixed_net(2, [0.3, 1.0])
+        layer = AdaptiveSelectionRounding(net, [p], [var],
+                                          continuous_update=True)
+        layer.eval()
+        # Network output = bias = [0.3, 1.0]
+        # Continuous idx 0: x + h = 2.0 + 0.3 = 2.3
+        # Integer idx 1: floor(1.3)=1, binarize(h=1.0)=1 -> 1+1=2.0
+        data = {"x_rel": torch.tensor([[2.0, 1.3]]), "p": torch.randn(1, 4)}
+        result = layer(data)["x"]
+        expected = torch.tensor([[2.3, 2.0]])
+        assert torch.allclose(result, expected)
+
+    def test_stochastic_differs_at_h_zero(self):
+        """At h=0, AdaptiveSelection rounds UP but Stochastic rounds DOWN."""
+        var = _make_var("x", 1, integer_indices=[0])
+        net_d = self._fixed_net(1, [0.0])
+        net_s = self._fixed_net(1, [0.0])
+        det = AdaptiveSelectionRounding(net_d, [p], [var])
+        sto = StochasticAdaptiveSelectionRounding(net_s, [p], [var])
+        det.eval()
+        sto.eval()
+        data_d = {"x_rel": torch.tensor([[1.3]]), "p": torch.zeros(1, 4)}
+        data_s = {"x_rel": torch.tensor([[1.3]]), "p": torch.zeros(1, 4)}
+        # Det: DiffBinarize(0) = (0>=0)=1 -> floor(1.3)+1 = 2.0
+        assert det(data_d)["x"].item() == 2.0
+        # Sto: DiffGumbelBinarize.eval(0) = (sigmoid(0)>0.5)=False -> 0
+        #   -> floor(1.3)+0 = 1.0
+        assert sto(data_s)["x"].item() == 1.0
+
+
+# ── TestNumericalTemperatureEffect ───────────────────────────────────
+
+class TestNumericalTemperatureEffect:
+    """Verify temperature parameter affects rounding boundaries."""
+
+    def test_gumbel_binarize_temperature_threshold(self):
+        """Low temp narrows the boundary; high temp widens it."""
+        cold = DiffGumbelBinarize(temperature=0.1)
+        hot = DiffGumbelBinarize(temperature=10.0)
+        cold.eval()
+        hot.eval()
+        # x = 0.01 (very slightly positive)
+        x = torch.tensor([0.01])
+        # Cold: sigmoid(0.01/0.1) = sigmoid(0.1) ≈ 0.525 > 0.5 -> 1.0
+        assert cold(x).item() == 1.0
+        # Hot: sigmoid(0.01/10) = sigmoid(0.001) ≈ 0.50025 > 0.5 -> 1.0
+        # (still 1.0 because any positive x gives sigmoid > 0.5)
+        assert hot(x).item() == 1.0
+        # x = -0.01 (very slightly negative)
+        x_neg = torch.tensor([-0.01])
+        # Both should give 0.0 for negative input
+        assert cold(x_neg).item() == 0.0
+        assert hot(x_neg).item() == 0.0
+
+    def test_stochastic_ste_temperature_exact(self):
+        """Temperature changes rounding boundary for fractional values."""
+        var = _make_var("x", 1, integer_indices=[0])
+        # With temp=0.1, sigmoid(x/0.1): boundary is still at frac=0.5
+        # With temp=10, sigmoid(x/10): boundary is still at frac=0.5
+        # But at frac=0.4999, (frac-0.5)=-0.0001:
+        cold = StochasticSTERounding(var, temperature=0.1)
+        hot = StochasticSTERounding(var, temperature=10.0)
+        cold.eval()
+        hot.eval()
+        # frac-0.5 = -0.0001
+        # Cold: sigmoid(-0.0001/0.1) = sigmoid(-0.001) < 0.5 -> 0 -> floor
+        # Hot: sigmoid(-0.0001/10) = sigmoid(-0.00001) < 0.5 -> 0 -> floor
+        data_c = {"x_rel": torch.tensor([[1.4999]])}
+        data_h = {"x_rel": torch.tensor([[1.4999]])}
+        assert cold(data_c)["x"].item() == 1.0
+        assert hot(data_h)["x"].item() == 1.0
 
 
 # ── TestNumericalFunctions ───────────────────────────────────────────
