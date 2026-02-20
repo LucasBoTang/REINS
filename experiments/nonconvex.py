@@ -148,7 +148,7 @@ def run_RR(loader_test, config):
     for i in tqdm(range(100)):
         b, d = b_test_np[i], d_test_np[i]
         # Set parameter values
-        model.set_param_val({"b": b})
+        model.set_param_val({"b": b, "d": d})
         model_rel = model.relax()
         tick = time.time()
         params.append(b.tolist() + d.tolist())
