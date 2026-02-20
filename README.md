@@ -195,7 +195,7 @@ solver.train(
     optimizer,
     epochs=200,      # max epochs
     patience=20,     # early stopping patience
-    warmup=20,       # warmup epochs before early stopping kicks in
+    warmup=20,       # warmup epochs before early stopping
     device="cuda",
 )
 ```
