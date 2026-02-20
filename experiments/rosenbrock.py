@@ -83,7 +83,7 @@ def run_EX(loader_test, config):
     from experiments.math_solver.rosenbrock import rosenbrock
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     # Init result lists
-    params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
+    params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], [], []
     # Evaluate on test set
     p_test_np = torch.as_tensor(loader_test.dataset.datadict["p"][:100]).cpu().numpy()
     a_test_np = torch.as_tensor(loader_test.dataset.datadict["a"][:100]).cpu().numpy()
@@ -101,11 +101,13 @@ def run_EX(loader_test, config):
             sols.append(list(xval["x"].values()) + list(xval["y"].values()))
             objvals.append(objval)
             viol = model.cal_violation()
+            viols.append(viol.tolist())
             mean_viols.append(np.mean(viol))
             max_viols.append(np.max(viol))
             num_viols.append(np.sum(viol > 1e-6))
         except:
             sols.append(None)
+            viols.append(None)
             objvals.append(None)
             mean_viols.append(None)
             max_viols.append(None)
@@ -114,7 +116,7 @@ def run_EX(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
+    df = pd.DataFrame({"Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     time.sleep(1)
@@ -123,7 +125,7 @@ def run_EX(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol"]].to_csv(f"result/sol/rb_exact_{num_blocks}.csv")
+    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_exact_{num_blocks}.csv")
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_exact_{num_blocks}.csv")
 
 
@@ -142,7 +144,7 @@ def run_RR(loader_test, config):
     from experiments.math_solver.rosenbrock import rosenbrock
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     # Init result lists
-    params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
+    params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], [], []
     # Evaluate on test set
     p_test_np = torch.as_tensor(loader_test.dataset.datadict["p"][:100]).cpu().numpy()
     a_test_np = torch.as_tensor(loader_test.dataset.datadict["a"][:100]).cpu().numpy()
@@ -161,11 +163,13 @@ def run_RR(loader_test, config):
             sols.append(list(xval["x"].values()) + list(xval["y"].values()))
             objvals.append(objval)
             viol = model.cal_violation()
+            viols.append(viol.tolist())
             mean_viols.append(np.mean(viol))
             max_viols.append(np.max(viol))
             num_viols.append(np.sum(viol > 1e-6))
         except:
             sols.append(None)
+            viols.append(None)
             objvals.append(None)
             mean_viols.append(None)
             max_viols.append(None)
@@ -174,7 +178,7 @@ def run_RR(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
+    df = pd.DataFrame({"Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     time.sleep(1)
@@ -183,7 +187,7 @@ def run_RR(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol"]].to_csv(f"result/sol/rb_rel_{num_blocks}.csv")
+    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_rel_{num_blocks}.csv")
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_rel_{num_blocks}.csv")
 
 
@@ -202,7 +206,7 @@ def run_N1(loader_test, config):
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
     model_heur = model.first_solution_heuristic(nodes_limit=1)
     # Init result lists
-    params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
+    params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], [], []
     # Evaluate on test set
     p_test_np = torch.as_tensor(loader_test.dataset.datadict["p"][:100]).cpu().numpy()
     a_test_np = torch.as_tensor(loader_test.dataset.datadict["a"][:100]).cpu().numpy()
@@ -219,11 +223,13 @@ def run_N1(loader_test, config):
             sols.append(list(xval["x"].values()) + list(xval["y"].values()))
             objvals.append(objval)
             viol = model_heur.cal_violation()
+            viols.append(viol.tolist())
             mean_viols.append(np.mean(viol))
             max_viols.append(np.max(viol))
             num_viols.append(np.sum(viol > 1e-6))
         except:
             sols.append(None)
+            viols.append(None)
             objvals.append(None)
             mean_viols.append(None)
             max_viols.append(None)
@@ -232,7 +238,7 @@ def run_N1(loader_test, config):
         # Record elapsed time
         elapseds.append(tock - tick)
     # Create result dataframe and print summary
-    df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
+    df = pd.DataFrame({"Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     time.sleep(1)
@@ -241,7 +247,7 @@ def run_N1(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol"]].to_csv(f"result/sol/rb_root_{num_blocks}.csv")
+    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_root_{num_blocks}.csv")
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_root_{num_blocks}.csv")
 
 
@@ -290,10 +296,10 @@ def run_AS(loader_train, loader_test, loader_val, config):
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}-p.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}.csv")
 
 
@@ -342,10 +348,10 @@ def run_DT(loader_train, loader_test, loader_val, config):
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}-p.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}.csv")
 
 
@@ -391,10 +397,10 @@ def run_RS(loader_train, loader_test, loader_val, config):
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
     if config.project:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}-p.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}-p.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}-p.csv")
     else:
-        df[["Param", "Sol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}.csv")
+        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}.csv")
         df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}.csv")
 
 
@@ -437,7 +443,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     from experiments.heuristic import naive_round
     from experiments.math_solver.rosenbrock import rosenbrock
     model = rosenbrock(steepness, num_blocks, timelimit=1000)
-    params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
+    params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], [], []
 
     # Batch inference for the entire test slice
     p_test_all = torch.as_tensor(loader_test.dataset.datadict["p"][:100]).to("cuda")
@@ -467,12 +473,13 @@ def run_LR(loader_train, loader_test, loader_val, config):
         sols.append(list(xval["x"].values()) + list(xval["y"].values()))
         objvals.append(objval)
         viol = model.cal_violation()
+        viols.append(viol.tolist())
         mean_viols.append(np.mean(viol))
         max_viols.append(np.max(viol))
         num_viols.append(np.sum(viol > 1e-6))
         elapseds.append(inf_time_per_sample)
     # Create result dataframe and print summary
-    df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
+    df = pd.DataFrame({"Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     time.sleep(1)
@@ -480,14 +487,14 @@ def run_LR(loader_train, loader_test, loader_val, config):
     os.makedirs("result/stat", exist_ok=True)
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
-    df[["Param", "Sol"]].to_csv(f"result/sol/rb_lrn{config.penalty}_{num_blocks}.csv")
+    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_lrn{config.penalty}_{num_blocks}.csv")
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_lrn{config.penalty}_{num_blocks}.csv")
 
 
 def evaluate(solver, model, loader_test):
     """Evaluate a LearnableSolver against the math solver ground truth."""
     # Initialize result lists
-    params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
+    params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], [], []
     # Evaluate on test set
     p_test_all = torch.as_tensor(loader_test.dataset.datadict["p"][:100]).to("cuda")
     a_test_all = torch.as_tensor(loader_test.dataset.datadict["a"][:100]).to("cuda")
@@ -515,12 +522,13 @@ def evaluate(solver, model, loader_test):
         sols.append(list(xval["x"].values()) + list(xval["y"].values()))
         objvals.append(objval)
         viol = model.cal_violation()
+        viols.append(viol.tolist())
         mean_viols.append(np.mean(viol))
         max_viols.append(np.max(viol))
         num_viols.append(np.sum(viol > 1e-6))
         elapseds.append(inf_time_per_sample)
     # Create result dataframe and print summary
-    df = pd.DataFrame({"Param": params, "Sol": sols, "Obj Val": objvals,
+    df = pd.DataFrame({"Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
                         "Mean Violation": mean_viols, "Max Violation": max_viols,
                         "Num Violations": num_viols, "Elapsed Time": elapseds})
     print(df.describe())
