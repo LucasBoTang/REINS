@@ -51,7 +51,6 @@ def submit_job(func, *args, timeout_min):
     )
     job = executor.submit(func, *args)
     print(f"        Submitted job with ID: {job.job_id}")
-    print()
 
 
 # Parameters as input data
@@ -126,3 +125,5 @@ for size in sizes:
     print("        STE Rounding, with projection")
     submit_job(experiments.rosenbrock.run_RS, loader_train, loader_test, loader_val, config,
                timeout_min=timeout)
+
+    print()
