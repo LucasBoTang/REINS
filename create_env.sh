@@ -36,6 +36,7 @@ if [ ! -d "./$VENV_NAME" ]; then
   pip install pydot==1.4.2
   pip install pyts
   pip install lightning wandb
+  pip install submitit
 
   # neuromancer without cvxpy/scs dependency
   pip install neuromancer==$NM_VER --no-deps
