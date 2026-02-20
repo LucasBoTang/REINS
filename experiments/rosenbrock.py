@@ -125,7 +125,9 @@ def run_EX(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_exact_{num_blocks}.csv")
+    np.savez_compressed(f"result/sol/rb_exact_{num_blocks}.npz",
+                        Param=np.array(params), Sol=np.array(sols, dtype=object),
+                        Viol=np.array(viols, dtype=object))
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_exact_{num_blocks}.csv")
 
 
@@ -187,7 +189,9 @@ def run_RR(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_rel_{num_blocks}.csv")
+    np.savez_compressed(f"result/sol/rb_rel_{num_blocks}.npz",
+                        Param=np.array(params), Sol=np.array(sols, dtype=object),
+                        Viol=np.array(viols, dtype=object))
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_rel_{num_blocks}.csv")
 
 
@@ -247,7 +251,9 @@ def run_N1(loader_test, config):
     print("Number of unsolved instances: ", df["Sol"].isna().sum())
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_root_{num_blocks}.csv")
+    np.savez_compressed(f"result/sol/rb_root_{num_blocks}.npz",
+                        Param=np.array(params), Sol=np.array(sols, dtype=object),
+                        Viol=np.array(viols, dtype=object))
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_root_{num_blocks}.csv")
 
 
@@ -296,12 +302,12 @@ def run_AS(loader_train, loader_test, loader_val, config):
     # Save results
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    if config.project:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}-p.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}-p.csv")
-    else:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_cls{penalty_weight}_{num_blocks}.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}.csv")
+    suffix = "-p" if config.project else ""
+    np.savez_compressed(f"result/sol/rb_cls{penalty_weight}_{num_blocks}{suffix}.npz",
+                        Param=np.array(df["Param"].tolist()),
+                        Sol=np.array(df["Sol"].tolist(), dtype=object),
+                        Viol=np.array(df["Viol"].tolist(), dtype=object))
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_cls{penalty_weight}_{num_blocks}{suffix}.csv")
 
 
 def run_DT(loader_train, loader_test, loader_val, config):
@@ -349,12 +355,12 @@ def run_DT(loader_train, loader_test, loader_val, config):
     # Save results
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    if config.project:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}-p.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}-p.csv")
-    else:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_thd{penalty_weight}_{num_blocks}.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}.csv")
+    suffix = "-p" if config.project else ""
+    np.savez_compressed(f"result/sol/rb_thd{penalty_weight}_{num_blocks}{suffix}.npz",
+                        Param=np.array(df["Param"].tolist()),
+                        Sol=np.array(df["Sol"].tolist(), dtype=object),
+                        Viol=np.array(df["Viol"].tolist(), dtype=object))
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_thd{penalty_weight}_{num_blocks}{suffix}.csv")
 
 
 def run_RS(loader_train, loader_test, loader_val, config):
@@ -399,12 +405,12 @@ def run_RS(loader_train, loader_test, loader_val, config):
     # Save results
     os.makedirs("result/sol", exist_ok=True)
     os.makedirs("result/stat", exist_ok=True)
-    if config.project:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}-p.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}-p.csv")
-    else:
-        df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_ste{penalty_weight}_{num_blocks}.csv")
-        df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}.csv")
+    suffix = "-p" if config.project else ""
+    np.savez_compressed(f"result/sol/rb_ste{penalty_weight}_{num_blocks}{suffix}.npz",
+                        Param=np.array(df["Param"].tolist()),
+                        Sol=np.array(df["Sol"].tolist(), dtype=object),
+                        Viol=np.array(df["Viol"].tolist(), dtype=object))
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_ste{penalty_weight}_{num_blocks}{suffix}.csv")
 
 
 def run_LR(loader_train, loader_test, loader_val, config):
@@ -490,7 +496,9 @@ def run_LR(loader_train, loader_test, loader_val, config):
     os.makedirs("result/stat", exist_ok=True)
     print(df.describe())
     print("Number of infeasible solutions: {}".format(np.sum(df["Num Violations"] > 0)))
-    df[["Param", "Sol", "Viol"]].to_csv(f"result/sol/rb_lrn{config.penalty}_{num_blocks}.csv")
+    np.savez_compressed(f"result/sol/rb_lrn{config.penalty}_{num_blocks}.npz",
+                        Param=np.array(params), Sol=np.array(sols, dtype=object),
+                        Viol=np.array(viols, dtype=object))
     df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(f"result/stat/rb_lrn{config.penalty}_{num_blocks}.csv")
 
 
