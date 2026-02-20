@@ -82,7 +82,7 @@ class RelaxationNode(Node):
             result[self.output_keys[0]] = output
         # Multiple variables: split by sizes
         else:
-            # Check that output dimension
+            # Validate output dimension matches sizes
             if sum(self.sizes) != output.shape[-1]:
                 raise ValueError("Sum of sizes must equal output dimension.")
             # Split output by sizes and assign to corresponding keys

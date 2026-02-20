@@ -32,7 +32,7 @@ class MLPBnDrop(nn.Module):
                 layers.append(nn.BatchNorm1d(sizes[i + 1]))
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
-        # last layer: Linear only
+        # Last layer: Linear only
         layers.append(nn.Linear(sizes[-2], sizes[-1], bias=bias))
         self.net = nn.Sequential(*layers)
         self.out_features = outsize

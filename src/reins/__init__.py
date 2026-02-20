@@ -9,16 +9,16 @@ from neuromancer.dataset import DictDataset
 from neuromancer.problem import Problem
 from neuromancer.trainer import Trainer
 
-# ---- reins modules ----
+# ---- REINS modules ----
 from reins.blocks import MLPBnDrop
 from reins.variable import Variable, VarType, TypeVariable
 from reins.loss import PenaltyLoss
 from reins.solver import LearnableSolver
 
 __all__ = [
-    # neuromancer re-exports
+    # Neuromancer re-exports
     "DictDataset", "Trainer", "Problem",
-    # reins modules
+    # REINS modules
     "MLPBnDrop",
     "Variable", "VarType", "TypeVariable",
     "PenaltyLoss", "LearnableSolver"

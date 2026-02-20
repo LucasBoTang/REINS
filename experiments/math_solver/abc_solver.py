@@ -220,23 +220,23 @@ class abcParamSolver(ABC):
             # Emphasize heuristic usage
             model_heur.opt.options["heuristics/emphasis"] = 3
             # Disable other heuristics
-            all_heuristics = [# rounding
+            all_heuristics = [# Rounding
                               "rounding", "simplerounding", "randrounding", "zirounding",
-                              # shifting
+                              # Shifting
                               "shifting", "intshifting", "shiftandpropagate",
-                              # flip
+                              # Flip
                               "oneopt", "twoopt",
-                              # indicator
+                              # Indicator
                               "indicator",
-                              # diving
+                              # Diving
                               "indicatordiving", "farkasdiving", "conflictdiving",
                               "nlpdiving", "guideddiving", "adaptivediving",
                               "coefdiving", "pscostdiving", "objpscostdiving",
                               "fracdiving", "veclendiving", "distributiondiving",
                               "rootsoldiving", "linesearchdiving",
-                              # search
+                              # Search
                               "alns", "localbranching", "rins", "rens", "gins", "dins", "lpface",
-                              # subsolve
+                              # Subsolve
                               "feaspump", "subnlp"]
             if heuristic_name not in all_heuristics:
                 raise ValueError(f"Unknown heuristic '{heuristic_name}'. Choose from {all_heuristics}.")

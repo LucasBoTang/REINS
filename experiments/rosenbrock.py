@@ -55,10 +55,10 @@ def build_loss(x, y, p, a, steepness, num_blocks, penalty_weight, device="cpu", 
     y_expr = y.relaxed if relaxed else y
     b_coef, q_coef = _coefficients(num_blocks)
     b_coef, q_coef = b_coef.to(device), q_coef.to(device)
-    # objective
+    # Objective
     f = torch.sum((a - x_expr) ** 2 + steepness * (y_expr - x_expr ** 2) ** 2, dim=1)
     obj = f.minimize(weight=1.0, name="obj")
-    # constraints
+    # Constraints
     inner = penalty_weight * (num_blocks * p[:, 0:1] / 2 <= torch.sum(y_expr, dim=1, keepdim=True))
     inner.name = "inner"
     outer = penalty_weight * (torch.sum(x_expr ** 2, dim=1, keepdim=True) <= num_blocks * p[:, 0:1])

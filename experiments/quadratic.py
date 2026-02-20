@@ -24,7 +24,7 @@ from reins.node.rounding import (
     StochasticAdaptiveSelectionRounding,
 )
 
-# turn off warning
+# Turn off warning
 import logging
 logging.getLogger("pyomo.core").setLevel(logging.ERROR)
 
@@ -56,10 +56,10 @@ def build_loss(x, b, num_var, num_ineq, penalty_weight, device="cpu", relaxed=Fa
     x_expr = x.relaxed if relaxed else x
     Q, p, A = _coefficients(num_var, num_ineq)
     Q, p, A = Q.to(device), p.to(device), A.to(device)
-    # objective
+    # Objective
     f = 0.5 * torch.sum((x_expr @ Q) * x_expr, dim=1) + torch.sum(p * x_expr, dim=1)
     obj = f.minimize(weight=1.0, name="obj")
-    # constraint
+    # Constraint
     con = penalty_weight * (x_expr @ A.T <= b)
     con.name = "con"
     return PenaltyLoss(objectives=[obj], constraints=[con])

@@ -55,10 +55,10 @@ def build_loss(x, b, d, num_var, num_ineq, penalty_weight, device="cpu", relaxed
     x_expr = x.relaxed if relaxed else x
     Q, p, A = _coefficients(num_var, num_ineq)
     Q, p, A = Q.to(device), p.to(device), A.to(device)
-    # objective (nonconvex due to sin)
+    # Objective (nonconvex due to sin)
     f = 0.5 * torch.sum((x_expr @ Q) * x_expr, dim=1) + torch.sum(p * torch.sin(x_expr), dim=1)
     obj = f.minimize(weight=1.0, name="obj")
-    # parameterized constraint: A(d)x = Ax + d*(x_0 - x_1) <= b
+    # Parameterized constraint: A(d)x = Ax + d*(x_0 - x_1) <= b
     lhs = x_expr @ A.T + d * (x_expr[:, [0]] - x_expr[:, [1]])
     con = penalty_weight * (lhs <= b)
     con.name = "con"

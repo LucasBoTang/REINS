@@ -38,22 +38,18 @@ class LearnableSolver:
         self.projection_step_size = projection_step_size
         self.projection_decay = projection_decay
 
-        # Validate key alignment between relaxation outputs and rounding inputs
+        # Validate alignment
         self._validate_key_alignment()
-        # Validate dimension alignment between relaxation outputs and rounding indices
         self._validate_dimension_alignment()
-        # Build neuromancer Problem with relaxation and rounding nodes
+        # Build problem and projection
         self._build_problem()
-        # Build optional GradientProjection for inference
         self._build_projection(list(self.loss.constraints))
 
     def _validate_key_alignment(self):
         """Check relaxation output keys cover rounding input keys."""
-        # Collect relaxation output keys
         relaxation_outputs = set(self.relaxation_node.output_keys)
-        # Collect relaxed keys
         rounding_rel_keys = {v.relaxed.key for v in self.rounding_node.vars}
-        # Check all rounding relaxed keys are in relaxation outputs
+        # Check coverage
         missing = rounding_rel_keys - relaxation_outputs
         if missing:
             raise ValueError(

@@ -44,7 +44,7 @@ class RoundingNode(Node, ABC):
 
         # Variable metadata for rounding logic
         self.vars = vars
-        # Total variable count across all variables (for MLP output sizing)
+        # Total variable count
         self.num_vars = sum(v.num_vars for v in vars)
 
     @abstractmethod
