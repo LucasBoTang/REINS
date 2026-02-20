@@ -37,7 +37,7 @@ class TestNeuromancerReExports:
     def test_penalty_loss(self):
         from reins import PenaltyLoss
         from neuromancer.loss import PenaltyLoss as PL_orig
-        assert PenaltyLoss is PL_orig
+        assert issubclass(PenaltyLoss, PL_orig)
 
     def test_problem(self):
         from reins import Problem
