@@ -29,16 +29,20 @@ import logging
 logging.getLogger("pyomo.core").setLevel(logging.ERROR)
 
 
-def _coefficients(num_var, num_ineq):
+def _coefficients(num_var, num_ineq, sparse=False):
     """Generate fixed problem coefficients (RandomState(17))."""
     rng = np.random.RandomState(17)
     Q = torch.from_numpy(0.01 * np.diag(rng.random(size=num_var))).float()
     p = torch.from_numpy(0.1 * rng.random(num_var)).float()
-    A = torch.from_numpy(rng.normal(scale=0.1, size=(num_ineq, num_var))).float()
+    A = rng.normal(scale=0.1, size=(num_ineq, num_var))
+    if sparse:
+        from experiments.sparse import sparse_mask
+        A *= sparse_mask(num_ineq, num_var, rng)
+    A = torch.from_numpy(A).float()
     return Q, p, A
 
 
-def build_loss(x, b, num_var, num_ineq, penalty_weight, device="cpu", relaxed=False):
+def build_loss(x, b, num_var, num_ineq, penalty_weight, sparse=False, device="cpu", relaxed=False):
     """
     Build PenaltyLoss for the quadratic problem via operator overloading.
 
@@ -49,12 +53,13 @@ def build_loss(x, b, num_var, num_ineq, penalty_weight, device="cpu", relaxed=Fa
         x: TypeVariable for the decision variable.
         b: Variable for the constraint RHS parameter.
         relaxed: If True, loss expression uses x.relaxed (reads "x_rel").
+        sparse: If True, apply sparse mask to constraint matrix A.
 
     Returns:
         PenaltyLoss instance.
     """
     x_expr = x.relaxed if relaxed else x
-    Q, p, A = _coefficients(num_var, num_ineq)
+    Q, p, A = _coefficients(num_var, num_ineq, sparse=sparse)
     Q, p, A = Q.to(device), p.to(device), A.to(device)
     # Objective
     f = 0.5 * torch.sum((x_expr @ Q) * x_expr, dim=1) + torch.sum(p * x_expr, dim=1)
@@ -77,7 +82,7 @@ def run_EX(loader_test, config):
     num_ineq = config.size
     # Init exact solver
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     # Init result lists
     params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
     # Evaluate on test set
@@ -132,7 +137,7 @@ def run_RR(loader_test, config):
     num_ineq = config.size
     # Init relaxed solver
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     # Init result lists
     params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
     # Evaluate on test set
@@ -188,7 +193,7 @@ def run_N1(loader_test, config):
     num_ineq = config.size
     # Init heuristic solver
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     model_heur = model.first_solution_heuristic(nodes_limit=1)
     # Init result lists
     params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
@@ -250,7 +255,7 @@ def run_AS(loader_train, loader_test, loader_val, config):
     # Build loss and get typed variable
     x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
     b = Variable("b")
-    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, device="cuda")
+    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, sparse=config.sparse, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
@@ -268,7 +273,7 @@ def run_AS(loader_train, loader_test, loader_val, config):
     solver.train(loader_train, loader_val, optimizer, device="cuda")
     # Evaluate on test set
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
     os.makedirs("result", exist_ok=True)
@@ -297,7 +302,7 @@ def run_DT(loader_train, loader_test, loader_val, config):
     # Build loss and get typed variable
     x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
     b = Variable("b")
-    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, device="cuda")
+    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, sparse=config.sparse, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
@@ -315,7 +320,7 @@ def run_DT(loader_train, loader_test, loader_val, config):
     solver.train(loader_train, loader_val, optimizer, device="cuda")
     # Evaluate on test set
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
     os.makedirs("result", exist_ok=True)
@@ -343,7 +348,7 @@ def run_RS(loader_train, loader_test, loader_val, config):
     # Build loss and get typed variable
     x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
     b = Variable("b")
-    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, device="cuda")
+    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, sparse=config.sparse, device="cuda")
     # Create solution mapping network
     rel_func = MLPBnDrop(insize=num_ineq, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
@@ -359,7 +364,7 @@ def run_RS(loader_train, loader_test, loader_val, config):
     solver.train(loader_train, loader_val, optimizer, device="cuda")
     # Evaluate on test set
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     df = evaluate(solver, model, loader_test)
     # Save results
     os.makedirs("result", exist_ok=True)
@@ -388,7 +393,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Build loss (relaxed: loss reads x_rel directly, no rounding layer)
     x = TypeVariable("x", num_vars=num_var, var_types=VarType.INTEGER)
     b = Variable("b")
-    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, device="cuda", relaxed=True)
+    loss = build_loss(x, b, num_var, num_ineq, penalty_weight, sparse=config.sparse, device="cuda", relaxed=True)
     # Create solution mapping network (no rounding layer)
     rel_func = MLPBnDrop(insize=num_ineq, outsize=num_var,
                           hsizes=[hsize] * hlayers_sol,
@@ -405,7 +410,7 @@ def run_LR(loader_train, loader_test, loader_val, config):
     # Evaluate with naive rounding
     from experiments.heuristic import naive_round
     from experiments.math_solver.quadratic import quadratic
-    model = quadratic(num_var, num_ineq, timelimit=1000)
+    model = quadratic(num_var, num_ineq, sparse=config.sparse, timelimit=1000)
     params, sols, objvals, mean_viols, max_viols, num_viols, elapseds = [], [], [], [], [], [], []
     # Batch inference: Move all test data to GPU at once
     b_test_all = torch.as_tensor(loader_test.dataset.datadict["b"][:100]).to("cuda")

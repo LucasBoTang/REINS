@@ -33,7 +33,12 @@ parser.add_argument("--penalty",
 parser.add_argument("--project",
                     action="store_true",
                     help="project gradient")
+parser.add_argument("--sparse",
+                    action="store_true",
+                    help="use sparse constraint matrix")
 config = parser.parse_args()
+if config.sparse and config.penalty == 1:
+    config.penalty = 10              # stronger penalty for sparse constraints
 
 # init problem
 num_var = config.size            # number of variables

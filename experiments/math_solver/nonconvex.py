@@ -10,13 +10,16 @@ from pyomo import environ as pe
 from experiments.math_solver.abc_solver import abcParamSolver
 
 class nonconvex(abcParamSolver):
-    def __init__(self, num_var, num_ineq, timelimit=None):
+    def __init__(self, num_var, num_ineq, sparse=False, timelimit=None):
         super().__init__(timelimit=timelimit, solver="scip")
         # Fixed parameters
         rng = np.random.RandomState(17)
         Q = 0.01 * np.diag(rng.random(size=num_var))
         p = 0.1 * rng.random(num_var)
         A = rng.normal(scale=0.1, size=(num_ineq, num_var))
+        if sparse:
+            from experiments.sparse import sparse_mask
+            A *= sparse_mask(num_ineq, num_var, rng)
         # Create model
         m = pe.ConcreteModel()
         # Mutable parameters (parametric part of the problem)
