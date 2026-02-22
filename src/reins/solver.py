@@ -18,15 +18,15 @@ class LearnableSolver:
         relaxation_node: RelaxationNode instance.
         rounding_node: RoundingNode instance.
         loss: PenaltyLoss instance (objectives + constraints).
-        projection_steps: Max projection iterations (default 1000).
+        projection_steps: Max projection iterations (default 10000).
         projection_step_size: Step size for gradient projection.
         projection_decay: Decay rate for projection step size.
     """
 
     def __init__(self, relaxation_node, rounding_node, loss,
-                 projection_steps=1000,
+                 projection_steps=10000,
                  projection_step_size=0.01,
-                 projection_decay=1.0):
+                 projection_decay=0.999):
         # Store relaxation node
         self.relaxation_node = relaxation_node
         # Store rounding node

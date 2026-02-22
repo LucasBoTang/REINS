@@ -20,7 +20,7 @@ class GradientProjection:
     """
 
     def __init__(self, rounding_components, constraints, target_keys,
-                 num_steps=1000, step_size=0.01, decay=1.0,
+                 num_steps=10000, step_size=0.01, decay=0.999,
                  tolerance=1e-6):
         self.rounding_components = rounding_components
         self.constraints = constraints
@@ -42,6 +42,8 @@ class GradientProjection:
         """
         # Clone and enable grad for all target variables
         xs = {k: data[k].clone().requires_grad_(True) for k in self.target_keys}
+        # Save originals for NaN fallback
+        xs_orig = {k: data[k].clone() for k in self.target_keys}
         batch_size = next(iter(xs.values())).shape[0]
         d = 1.0
 
@@ -64,13 +66,16 @@ class GradientProjection:
                 break
             total_viol = torch.stack(viols).sum(dim=0) if len(viols) > 1 else viols[0]
 
-            # Check convergence
-            if total_viol.max().item() < self.tolerance:
+            # Check convergence (ignore NaN samples)
+            finite_mask = torch.isfinite(total_viol)
+            if not finite_mask.any():
+                break
+            if total_viol[finite_mask].max().item() < self.tolerance:
                 break
 
-            # Gradient step on all target variables
+            # Backprop only through finite samples to avoid NaN contamination
             grads = torch.autograd.grad(
-                total_viol.sum(), list(xs.values()),
+                total_viol[finite_mask].sum(), list(xs.values()),
                 allow_unused=True,
             )
             xs = {
@@ -80,9 +85,13 @@ class GradientProjection:
             }
             d = self.decay * d
 
-        # Final update
+        # Final update — revert NaN samples to pre-projection originals
         for k in self.target_keys:
-            data[k] = xs[k].detach()
+            projected = xs[k].detach()
+            nan_mask = torch.isnan(projected).any(dim=-1)
+            if nan_mask.any():
+                projected[nan_mask] = xs_orig[k][nan_mask]
+            data[k] = projected
 
         # Final round
         for comp in self.rounding_components:
