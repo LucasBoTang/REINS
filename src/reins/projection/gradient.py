@@ -49,7 +49,7 @@ class GradientProjection:
         d = 1.0
 
         # Per-sample iteration tracking
-        sample_iters = torch.zeros(batch_size, dtype=torch.long)
+        sample_iters = torch.zeros(batch_size, dtype=torch.long, device=next(iter(xs.values())).device)
 
         # Build temp data once, update in-place each iteration
         temp_data = {**data}
