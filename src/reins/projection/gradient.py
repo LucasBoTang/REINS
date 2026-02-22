@@ -29,6 +29,7 @@ class GradientProjection:
         self.step_size = step_size
         self.decay = decay
         self.tolerance = tolerance
+        self.num_iters = 0
 
     def __call__(self, data):
         """
@@ -47,9 +48,14 @@ class GradientProjection:
         batch_size = next(iter(xs.values())).shape[0]
         d = 1.0
 
+        # Per-sample iteration tracking
+        sample_iters = torch.zeros(batch_size, dtype=torch.long)
+
         # Build temp data once, update in-place each iteration
         temp_data = {**data}
+        num_iters = 0
         for _ in range(self.num_steps):
+            num_iters += 1
             temp_data.update(xs)
 
             # Round through components
@@ -66,8 +72,13 @@ class GradientProjection:
                 break
             total_viol = torch.stack(viols).sum(dim=0) if len(viols) > 1 else viols[0]
 
-            # Check convergence (ignore NaN samples)
+            # Track per-sample convergence (feasible or NaN)
             finite_mask = torch.isfinite(total_viol)
+            unsettled = sample_iters == 0
+            newly_settled = unsettled & (~finite_mask | (total_viol < self.tolerance))
+            sample_iters[newly_settled] = num_iters
+
+            # Check convergence (ignore NaN samples)
             if not finite_mask.any():
                 break
             if total_viol[finite_mask].max().item() < self.tolerance:
@@ -84,6 +95,11 @@ class GradientProjection:
                 for k, g in zip(self.target_keys, grads)
             }
             d = self.decay * d
+
+        # Samples that never settled get the total iteration count
+        sample_iters[sample_iters == 0] = num_iters
+        self.num_iters = num_iters
+        data["_proj_iters"] = sample_iters
 
         # Final update — revert NaN samples to pre-projection originals
         for k in self.target_keys:
