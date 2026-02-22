@@ -20,12 +20,14 @@ def set_seeds(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-def make_result_df(params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds):
+def make_result_df(params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds, proj_iters=None):
     """Create a standardized result DataFrame."""
     return pd.DataFrame({
         "Param": params, "Sol": sols, "Viol": viols, "Obj Val": objvals,
         "Mean Violation": mean_viols, "Max Violation": max_viols,
-        "Num Violations": num_viols, "Elapsed Time": elapseds,
+        "Num Violations": num_viols,
+        "Num Proj Iters": proj_iters if proj_iters is not None else [0] * len(objvals),
+        "Elapsed Time": elapseds,
     })
 
 
@@ -49,7 +51,7 @@ def save_results(df, npz_path, csv_path):
         Sol=np.array(df["Sol"].tolist(), dtype=object),
         Viol=np.array(df["Viol"].tolist(), dtype=object),
     )
-    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Elapsed Time"]].to_csv(csv_path)
+    df[["Obj Val", "Mean Violation", "Max Violation", "Num Violations", "Num Proj Iters", "Elapsed Time"]].to_csv(csv_path)
 
 
 def record_viol(model, viols, mean_viols, max_viols, num_viols):

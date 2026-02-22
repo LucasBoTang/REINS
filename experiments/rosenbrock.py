@@ -388,6 +388,8 @@ def evaluate(solver, model, loader_test):
     tick_inf = time.time()
     test_results = solver.predict({"p": p_test_all, "a": a_test_all})
     tock_inf = time.time()
+    # Get per-sample projection iteration counts
+    proj_iters = test_results["_proj_iters"].tolist()
     # Convert results to numpy for post-processing
     x_all_np = test_results["x"].detach().cpu().numpy()
     y_all_np = test_results["y"].detach().cpu().numpy()
@@ -411,6 +413,7 @@ def evaluate(solver, model, loader_test):
         record_viol(model, viols, mean_viols, max_viols, num_viols)
         elapseds.append(inf_time_per_sample)
     # Create result dataframe and print summary
-    df = make_result_df(params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds)
+    df = make_result_df(params, sols, viols, objvals, mean_viols, max_viols, num_viols, elapseds,
+                        proj_iters=proj_iters)
     print_summary(df)
     return df

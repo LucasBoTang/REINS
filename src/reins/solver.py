@@ -156,5 +156,7 @@ class LearnableSolver:
         else:
             with torch.no_grad():
                 data.update(self.rounding_node(data))
+            batch_size = next(iter(data.values())).shape[0]
+            data["_proj_iters"] = torch.zeros(batch_size, dtype=torch.long)
 
         return data
