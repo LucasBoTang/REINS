@@ -91,12 +91,17 @@ class abcParamSolver(ABC):
         solvals = {}
         try:
             for key, var_comp in self.vars.items():
-                solvals[key] = {i: float(var_comp[i].value) for i in var_comp}
+                vals = {i: float(var_comp[i].value) for i in var_comp}
+                if any(np.isnan(v) for v in vals.values()):
+                    return None, None
+                solvals[key] = vals
             # Get the objective value
             objval = float(pe.value(self.model.obj))
+            if np.isnan(objval):
+                return None, None
         except (ValueError, AttributeError, TypeError):
             # No value or invalid state
-            solvals, objval = None, None
+            return None, None
         return solvals, objval
 
     def set_warm_start(self, init_sol):
@@ -125,6 +130,8 @@ class abcParamSolver(ABC):
     def _constraint_violation(self, constr):
         """Compute the violation of a single constraint."""
         lhs = float(pe.value(constr.body))
+        if np.isnan(lhs):
+            return float("inf")
         # Check if LHS is below the lower bound
         if constr.lower is not None:
             lb = float(pe.value(constr.lower))
