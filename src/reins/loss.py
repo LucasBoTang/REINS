@@ -29,7 +29,7 @@ class PenaltyLoss(_NMPenaltyLoss):
         for c in self.constraints:
             # Compute constraint output
             output = c(input_dict)
-            output_dict = {**output_dict, **output}
+            output_dict.update(output)
             cvalue = output[c.output_keys[1]]
             cviolation = output[c.output_keys[2]]
             # Sum over constraint dims, mean over batch
