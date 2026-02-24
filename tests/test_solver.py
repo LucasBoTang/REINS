@@ -132,7 +132,7 @@ class TestLearnableSolverConstruction:
     def test_projection_default_enabled(self, rel,rounding, loss):
         """Projection should be enabled by default (constraints from loss)."""
         solver = LearnableSolver(rel, rounding, loss)
-        assert solver.projection_steps == 1000
+        assert solver.projection_steps == 10000
         assert isinstance(solver.projection, GradientProjection)
 
     def test_projection_disabled_explicit(self, rel,rounding, loss):
@@ -145,7 +145,7 @@ class TestLearnableSolverConstruction:
     def test_projection_skipped_without_constraints(self, rel,rounding, loss_no_constraints):
         """Projection is skipped when loss has no constraints."""
         solver = LearnableSolver(rel, rounding, loss_no_constraints)
-        assert solver.projection_steps == 1000
+        assert solver.projection_steps == 10000
         assert solver.projection is None
 
     def test_projection_custom_steps(self, rel,rounding, loss):
