@@ -5,7 +5,6 @@ Loss functions for REINS.
 import math
 
 import torch
-import numpy as np
 from neuromancer.loss import PenaltyLoss as _NMPenaltyLoss
 
 
@@ -43,7 +42,7 @@ class PenaltyLoss(_NMPenaltyLoss):
             C_violations.append(flat)
         if self.constraints:
             # Stack and store constraint values and violations with equality/inequality flags
-            equalities_flags = np.array(eq_flags)
+            equalities_flags = torch.tensor(eq_flags)
             # Concatenate constraint violations and values across all constraints
             C_violations = torch.cat(C_violations, dim=-1)
             C_values = torch.cat(C_values, dim=-1)
