@@ -75,19 +75,12 @@ class RelaxationNode(Node):
         x = torch.cat(inputs, dim=-1) if len(inputs) > 1 else inputs[0]
         # Call the network
         output = self.callable(x)
-        # Initialize result dict
-        result = {}
         # Single output: no split needed
         if len(self.output_keys) == 1:
-            result[self.output_keys[0]] = output
+            result = {self.output_keys[0]: output}
         # Multiple variables: split by sizes
         else:
-            # Validate output dimension matches sizes
-            if sum(self.sizes) != output.shape[-1]:
-                raise ValueError("Sum of sizes must equal output dimension.")
-            # Split output by sizes and assign to corresponding keys
-            offset = 0
-            for size, key in zip(self.sizes, self.output_keys):
-                result[key] = output[:, offset:offset + size]
-                offset += size
+            # Split output by variable sizes and map to corresponding keys
+            splits = torch.split(output, self.sizes, dim=-1)
+            result = dict(zip(self.output_keys, splits))
         return result
