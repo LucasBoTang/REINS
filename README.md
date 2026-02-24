@@ -108,12 +108,12 @@ loss = PenaltyLoss(objectives=[obj], constraints=[con])
 
 ### Step 3: Build Relaxation Network
 
-The relaxation network learns the mapping $b \mapsto x_{\text{rel}}$. Wrap any PyTorch module in a `RelaxationNode` to integrate it into the pipeline.
-
+The relaxation network learns the mapping $b \mapsto x_{\text{rel}}$.
 ```python
 from reins import MLPBnDrop
 from reins.node import RelaxationNode
 
+# set a neural network for relaxation
 rel_net = MLPBnDrop(
     insize=num_ineq,
     outsize=num_var,
@@ -137,6 +137,7 @@ from reins.node.rounding import (
     DynamicThresholdRounding,
 )
 
+# set a neural network for rounding
 rnd_net = MLPBnDrop(
     insize=num_ineq + num_var,
     outsize=num_var,
@@ -144,7 +145,7 @@ rnd_net = MLPBnDrop(
 )
 
 # Adaptive Selection (AS): (b, x_rel) -> rnd_net -> x
-rounding = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x], continuous_update=True)
+rounding = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x])
 
 # Dynamic Thresholding (DT): (b, x_rel) -> rnd_net -> x
 rounding = DynamicThresholdRounding(rnd_net, [b], [x])
@@ -153,7 +154,7 @@ rounding = DynamicThresholdRounding(rnd_net, [b], [x])
 
 ### Step 5: Assemble the Solver
 
-`LearnableSolver` composes the relaxation node, rounding layer, and loss.
+`LearnableSolver` composes the relaxation node, the rounding node, and the loss (with a default projection).
 
 ```python
 from reins import LearnableSolver
