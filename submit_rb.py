@@ -52,7 +52,8 @@ def submit_job(func, *args, timeout_min, csv_path):
     executor.update_parameters(
         slurm_additional_parameters={"account": "def-khalile2_gpu",
                                      "gres": "gpu:h100:1",
-                                     "partition": partition},
+                                     "partition": partition,
+                                     "exclude": "fc10512"},
         timeout_min=timeout_min,
         mem_gb=64,
         cpus_per_task=16,
@@ -104,29 +105,6 @@ for size in sizes:
         # Set penalty in config
         config.penalty = penalty
         print(f"    Penalty weight: {penalty}, timeout={timeout}min")
-
-        # Non-projection versions
-        config.project = False
-        # Adaptive selection rounding
-        print("        Adaptive Selection, no projection")
-        submit_job(experiments.rosenbrock.run_AS, loader_train, loader_test, loader_val, config,
-                   timeout_min=timeout,
-                   csv_path=f"result/stat/rb_cls{penalty}_{size}.csv")
-        # Dynamic threshold rounding
-        print("        Dynamic Threshold, no projection")
-        submit_job(experiments.rosenbrock.run_DT, loader_train, loader_test, loader_val, config,
-                   timeout_min=timeout,
-                   csv_path=f"result/stat/rb_thd{penalty}_{size}.csv")
-        # Learn-then-round
-        print("        Learn-then-Round, no projection")
-        submit_job(experiments.rosenbrock.run_LR, loader_train, loader_test, loader_val, config,
-                   timeout_min=timeout,
-                   csv_path=f"result/stat/rb_lrn{penalty}_{size}.csv")
-        # STE rounding
-        print("        STE Rounding, no projection")
-        submit_job(experiments.rosenbrock.run_RS, loader_train, loader_test, loader_val, config,
-                   timeout_min=timeout,
-                   csv_path=f"result/stat/rb_ste{penalty}_{size}.csv")
 
         # Projection versions
         config.project = True

@@ -57,7 +57,6 @@ d_samples = torch.from_numpy(np.random.uniform(-0.1, 0.1, size=(num_data, num_in
 
 # data split
 from sklearn.model_selection import train_test_split
-from reins import DictDataset
 ind = list(range(num_data))
 ind_train, ind_test = train_test_split(ind, test_size=test_size, random_state=42, shuffle=True)
 ind_train, ind_val = train_test_split(ind_train, test_size=val_size, random_state=42, shuffle=True)
@@ -67,7 +66,6 @@ data_train = DictDataset({"b": b_samples[itrain], "d": d_samples[itrain]}, name=
 data_test = DictDataset({"b": b_samples[itest], "d": d_samples[itest]}, name="test")
 data_val = DictDataset({"b": b_samples[ival], "d": d_samples[ival]}, name="dev")
 # torch dataloaders
-from torch.utils.data import DataLoader
 loader_train = DataLoader(data_train, config.batch_size, num_workers=4,
                           collate_fn=data_train.collate_fn, shuffle=True,
                           pin_memory=True, persistent_workers=True)
