@@ -46,10 +46,14 @@ class GradientProjection:
         # Save originals for NaN fallback
         xs_orig = {k: data[k].clone() for k in self.target_keys}
         batch_size = next(iter(xs.values())).shape[0]
+        device = next(iter(xs.values())).device
         d = 1.0
 
         # Per-sample iteration tracking
-        sample_iters = torch.zeros(batch_size, dtype=torch.long, device=next(iter(xs.values())).device)
+        sample_iters = torch.zeros(batch_size, dtype=torch.long, device=device)
+
+        # Cache constraint violation keys
+        viol_keys = [con.output_keys[2] for con in self.constraints]
 
         # Build temp data once, update in-place each iteration
         temp_data = {**data}
@@ -62,15 +66,11 @@ class GradientProjection:
             for comp in self.rounding_components:
                 temp_data.update(comp(temp_data))
 
-            # Compute total violation from all constraints at once
-            viols = []
-            for con in self.constraints:
+            # Accumulate total violation directly (avoid list + stack)
+            total_viol = torch.zeros(batch_size, device=device)
+            for con, vk in zip(self.constraints, viol_keys):
                 out = con(temp_data)
-                viol_key = con.output_keys[2]
-                viols.append(out[viol_key].reshape(batch_size, -1).sum(dim=1))
-            if not viols:
-                break
-            total_viol = torch.stack(viols).sum(dim=0) if len(viols) > 1 else viols[0]
+                total_viol = total_viol + out[vk].reshape(batch_size, -1).sum(dim=1)
 
             # Track per-sample convergence (feasible or NaN)
             finite_mask = torch.isfinite(total_viol)
@@ -78,15 +78,14 @@ class GradientProjection:
             newly_settled = unsettled & (~finite_mask | (total_viol < self.tolerance))
             sample_iters[newly_settled] = num_iters
 
-            # Check convergence (ignore NaN samples)
-            if not finite_mask.any():
-                break
-            if total_viol[finite_mask].max().item() < self.tolerance:
+            # Active samples: finite and still violating constraints
+            active_mask = finite_mask & (total_viol >= self.tolerance)
+            if not active_mask.any():
                 break
 
-            # Backprop only through finite samples to avoid NaN contamination
+            # Backprop only through active (infeasible) samples
             grads = torch.autograd.grad(
-                total_viol[finite_mask].sum(), list(xs.values()),
+                total_viol[active_mask].sum(), list(xs.values()),
                 allow_unused=True,
             )
             xs = {
