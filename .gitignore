@@ -155,4 +155,5 @@ cython_debug/
 # Dir
 wandb/*
 result/*
+!result/stat/
 */bin/*
