@@ -99,13 +99,13 @@ class LearnableRoundingLayer(RoundingNode, ABC):
         )
         hidden = self.net(features)
 
-        # Round per variable using offset tracking
+        # Split network output by variable sizes
+        h_splits = torch.split(hidden, [v.num_vars for v in self.vars], dim=-1)
+
+        # Round per variable
         output = {}
-        offset = 0
-        for var in self.vars:
-            n = var.num_vars
+        for var, h_var in zip(self.vars, h_splits):
             x = data[var.relaxed.key].clone()
-            h_var = hidden[:, offset:offset + n]
 
             # Optionally update continuous variables via network adjustment
             if self.continuous_update and var.continuous_indices:
@@ -117,14 +117,13 @@ class LearnableRoundingLayer(RoundingNode, ABC):
                 x_floor = self.floor(x_int)
                 binary = self._round_integer(x_int, x_floor, h_var[:, var.integer_indices])
                 x[:, var.integer_indices] = x_floor + binary
-            
+
             # Round binary variables
             if var.binary_indices:
                 binary = self._round_binary(x[:, var.binary_indices], h_var[:, var.binary_indices])
                 x[:, var.binary_indices] = binary
 
             output[var.key] = x
-            offset += n
         return output
 
     @abstractmethod
