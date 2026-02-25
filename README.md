@@ -142,6 +142,8 @@ rnd_net = MLPBnDrop(
     insize=num_ineq + num_var,
     outsize=num_var,
     hsizes=[64] * 3,
+    dropout=0.2,      # dropout rate
+    bnorm=True,       # batch normalization
 )
 
 # Adaptive Selection (AS): (b, x_rel) -> rnd_net -> x
@@ -159,7 +161,7 @@ rounding = DynamicThresholdRounding(rnd_net, [b], [x])
 ```python
 from reins import LearnableSolver
 
-# Default: GradientProjection enabled (1000 steps) for feasibility enforcement at inference
+# Default: GradientProjection enabled (10000 steps with decay) for feasibility enforcement at inference
 solver = LearnableSolver(rel, rounding, loss)
 
 # Disable projection
