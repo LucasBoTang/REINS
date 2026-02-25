@@ -217,7 +217,7 @@ print(result["x_rel"])   # continuous relaxation
 ## Package Structure
 
 ```
-src/reins/                    # Core package
+src/reins/                       # Core package
 ├── __init__.py                  # Public API
 ├── variable.py                  # VarType enum & TypeVariable class
 ├── blocks.py                    # MLPBnDrop (MLP with BatchNorm + Dropout)
