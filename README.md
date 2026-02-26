@@ -130,12 +130,10 @@ rel = RelaxationNode(rel_net, [b], [x])
 ### Step 4: Choose a Rounding Layer
 
 Rounding layers convert continuous relaxations to integer solutions.
+Set `stochastic=True` to inject Gumbel-Softmax noise during training for better exploration; at eval time the layer is always deterministic.
 
 ```python
-from reins.node.rounding import (
-    StochasticAdaptiveSelectionRounding, # stochastic version with Gumbel noise
-    DynamicThresholdRounding,
-)
+from reins.node.rounding import AdaptiveSelectionRounding, DynamicThresholdRounding
 
 # set a neural network for rounding
 rnd_net = MLPBnDrop(
@@ -147,7 +145,7 @@ rnd_net = MLPBnDrop(
 )
 
 # Adaptive Selection (AS): (b, x_rel) -> rnd_net -> x
-rnd = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x])
+rnd = AdaptiveSelectionRounding(rnd_net, [b], [x], stochastic=True)
 
 # Dynamic Thresholding (DT): (b, x_rel) -> rnd_net -> x
 rnd = DynamicThresholdRounding(rnd_net, [b], [x])
@@ -235,9 +233,9 @@ src/reins/                       # Core package
 │   └── rounding/                # Integer rounding layers
 │       ├── functions.py         # Differentiable STE primitives
 │       ├── base.py              # RoundingNode abstract base class
-│       ├── ste.py               # STERounding, StochasticSTERounding
-│       ├── selection.py         # AdaptiveSelectionRounding, StochasticAdaptiveSelectionRounding
-│       └── threshold.py         # DynamicThresholdRounding, StochasticDynamicThresholdRounding
+│       ├── ste.py               # STERounding
+│       ├── selection.py         # AdaptiveSelectionRounding
+│       └── threshold.py         # DynamicThresholdRounding
 ├── projection/                  # Feasibility projection
 │   └── gradient.py              # GradientProjection
 experiments/                     # Benchmark experiments (not part of the package)

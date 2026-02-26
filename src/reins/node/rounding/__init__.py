@@ -12,12 +12,6 @@ from reins.node.rounding.functions import (
 )
 
 # Rounding nodes
-from reins.node.rounding.ste import STERounding, StochasticSTERounding
-from reins.node.rounding.threshold import (
-    DynamicThresholdRounding,
-    StochasticDynamicThresholdRounding,
-)
-from reins.node.rounding.selection import (
-    AdaptiveSelectionRounding,
-    StochasticAdaptiveSelectionRounding,
-)
+from reins.node.rounding.ste import STERounding
+from reins.node.rounding.threshold import DynamicThresholdRounding
+from reins.node.rounding.selection import AdaptiveSelectionRounding

@@ -16,10 +16,11 @@ from reins import (
 )
 from reins.variable import VarType
 from reins.node import RelaxationNode
+from functools import partial
 from reins.node.rounding import (
-    StochasticSTERounding,
+    STERounding,
     DynamicThresholdRounding,
-    StochasticAdaptiveSelectionRounding,
+    AdaptiveSelectionRounding,
 )
 
 from experiments.utils import set_seeds, make_result_df, print_summary, save_results, record_viol, record_failure
@@ -250,7 +251,7 @@ def _run_network_rounding(loader_train, loader_test, loader_val, config,
 def run_AS(loader_train, loader_test, loader_val, config):
     """Adaptive selection rounding (Gumbel)."""
     _run_network_rounding(loader_train, loader_test, loader_val, config,
-                          StochasticAdaptiveSelectionRounding, "nc_cls", "AS")
+                          partial(AdaptiveSelectionRounding, stochastic=True), "nc_cls", "AS")
 
 
 def run_DT(loader_train, loader_test, loader_val, config):
@@ -280,7 +281,7 @@ def run_RS(loader_train, loader_test, loader_val, config):
                           hsizes=[hsize] * hlayers_sol, nonlin=nn.ReLU)
     rel = RelaxationNode(rel_func, [b, d], [x], name="relaxation")
     # Create rounding operator (STE: no additional network needed)
-    rnd = StochasticSTERounding([x])
+    rnd = STERounding([x], stochastic=True)
     # Set up solver
     proj_steps = 10000 if config.project else 0
     solver = LearnableSolver(rel, rnd, loss, projection_steps=proj_steps)

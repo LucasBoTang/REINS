@@ -1,5 +1,5 @@
 """
-Adaptive selection rounding layers (deterministic and stochastic).
+Adaptive selection rounding layer.
 """
 
 import torch
@@ -17,16 +17,24 @@ class AdaptiveSelectionRounding(LearnableRoundingLayer):
         params: Parameter Variable or list of parameter Variables.
         vars: TypeVariable or list of TypeVariables.
         continuous_update: Whether to update continuous variables (default: False).
+        stochastic: Use Gumbel-Softmax noise during training (default: False).
         tolerance: Tolerance for near-integer masking (default: 1e-3).
+        temperature: Gumbel-Softmax temperature when stochastic (default: 1.0).
         name: Module name.
     """
 
     def __init__(self, callable, params, vars,
-                 continuous_update=False, tolerance=1e-3,
-                 name="adaptive_selection_rounding"):
+                 continuous_update=False, stochastic=False,
+                 tolerance=1e-3, temperature=1.0, name=None):
+        if name is None:
+            name = ("stochastic_adaptive_selection_rounding"
+                    if stochastic else "adaptive_selection_rounding")
         super().__init__(callable, params, vars, continuous_update, name)
-        # Deterministic STE binarization
-        self.binarize = DiffBinarize()
+        # Gumbel-Softmax binarization for stochastic, deterministic STE otherwise
+        if stochastic:
+            self.binarize = DiffGumbelBinarize(temperature=temperature)
+        else:
+            self.binarize = DiffBinarize()
         self.tolerance = tolerance
 
     def _round_integer(self, x_int, x_floor, h_int):
@@ -44,26 +52,3 @@ class AdaptiveSelectionRounding(LearnableRoundingLayer):
         binary = torch.where(frac > 1.0 - self.tolerance,
                              torch.ones_like(binary), binary)
         return binary
-
-
-class StochasticAdaptiveSelectionRounding(AdaptiveSelectionRounding):
-    """
-    Stochastic adaptive selection rounding with Gumbel-Softmax noise.
-
-    Args:
-        callable: Network mapping [params, vars] to per-variable selection.
-        params: Parameter Variable or list of parameter Variables.
-        vars: TypeVariable or list of TypeVariables.
-        continuous_update: Whether to update continuous variables (default: False).
-        temperature: Gumbel-Softmax temperature (default: 1.0).
-        name: Module name.
-    """
-
-    def __init__(self, callable, params, vars,
-                 continuous_update=False, temperature=1.0,
-                 name="stochastic_adaptive_selection_rounding"):
-        super().__init__(callable, params, vars,
-                         continuous_update=continuous_update,
-                         name=name)
-        # Replace deterministic STE binarization with Gumbel-Softmax version
-        self.binarize = DiffGumbelBinarize(temperature=temperature)

@@ -10,15 +10,9 @@ from reins.blocks import MLPBnDrop
 from reins.variable import Variable, TypeVariable, VarType
 from neuromancer.system import Node
 from reins.node.rounding.base import RoundingNode
-from reins.node.rounding.ste import STERounding, StochasticSTERounding
-from reins.node.rounding.threshold import (
-    DynamicThresholdRounding,
-    StochasticDynamicThresholdRounding,
-)
-from reins.node.rounding.selection import (
-    AdaptiveSelectionRounding,
-    StochasticAdaptiveSelectionRounding,
-)
+from reins.node.rounding.ste import STERounding
+from reins.node.rounding.threshold import DynamicThresholdRounding
+from reins.node.rounding.selection import AdaptiveSelectionRounding
 from reins.node.rounding.functions import (
     DiffFloor,
     DiffBinarize,
@@ -254,21 +248,17 @@ class TestSTERounding:
 # ── TestStochasticSTERounding ────────────────────────────────────────
 
 class TestStochasticSTERounding:
-    """Test StochasticSTERounding layer."""
-
-    def test_inherits_ste_rounding(self):
-        """Should be a subclass of STERounding."""
-        assert issubclass(StochasticSTERounding, STERounding)
+    """Test STERounding(stochastic=True) layer."""
 
     def test_output_shape(self, int_var):
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         data = {"x_rel": torch.randn(8, 3)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
 
     def test_integer_rounding_eval(self, int_var):
         """Eval mode: integer variables should be rounded to integers."""
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         layer.eval()
         data = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
         result = layer(data)
@@ -277,7 +267,7 @@ class TestStochasticSTERounding:
 
     def test_binary_rounding_eval(self, bin_var):
         """Eval mode: binary variables should be 0 or 1."""
-        layer = StochasticSTERounding(bin_var)
+        layer = STERounding(bin_var, stochastic=True)
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]])}
         result = layer(data)
@@ -286,7 +276,7 @@ class TestStochasticSTERounding:
 
     def test_mixed_types(self, mixed_var):
         """Mixed variable: continuous untouched, integers rounded, binaries 0/1."""
-        layer = StochasticSTERounding(mixed_var)
+        layer = STERounding(mixed_var, stochastic=True)
         layer.eval()
         x_rel = torch.tensor([[0.5, 1.7, 0.8, 3.2, 0.3]])
         data = {"x_rel": x_rel}
@@ -299,7 +289,7 @@ class TestStochasticSTERounding:
 
     def test_train_stochastic(self, int_var):
         """Train mode should produce different results across calls."""
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         layer.train()
         results = []
         for _ in range(10):
@@ -309,7 +299,7 @@ class TestStochasticSTERounding:
 
     def test_eval_deterministic(self, int_var):
         """Eval mode should produce deterministic results."""
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         layer.eval()
         data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
         data2 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]])}
@@ -319,7 +309,7 @@ class TestStochasticSTERounding:
 
     def test_gradient_flow(self, int_var):
         """Gradients should flow through Gumbel-STE rounding."""
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         layer.train()
         x_rel = torch.tensor([[1.3, 2.7, 0.1]], requires_grad=True)
         data = {"x_rel": x_rel}
@@ -329,14 +319,14 @@ class TestStochasticSTERounding:
         assert not torch.all(x_rel.grad == 0)
 
     def test_no_learnable_params(self, int_var):
-        """StochasticSTERounding should have no learnable parameters."""
-        layer = StochasticSTERounding(int_var)
+        """STERounding(stochastic=True) should have no learnable parameters."""
+        layer = STERounding(int_var, stochastic=True)
         params = list(layer.parameters())
         assert len(params) == 0
 
     def test_multi_var(self, multi_vars):
         """Multi-variable: each variable rounded independently."""
-        layer = StochasticSTERounding(multi_vars)
+        layer = STERounding(multi_vars, stochastic=True)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -350,8 +340,8 @@ class TestStochasticSTERounding:
 
     def test_temperature_effect(self, bin_var):
         """Lower temperature should produce sharper (more deterministic) outputs."""
-        layer_hot = StochasticSTERounding(bin_var, temperature=10.0)
-        layer_cold = StochasticSTERounding(bin_var, temperature=0.01)
+        layer_hot = STERounding(bin_var, stochastic=True, temperature=10.0)
+        layer_cold = STERounding(bin_var, stochastic=True, temperature=0.01)
         layer_hot.train()
         layer_cold.train()
         # Run multiple trials and check variance
@@ -367,7 +357,7 @@ class TestStochasticSTERounding:
 
     def test_batched(self, int_var):
         """Batch dimension should be preserved."""
-        layer = StochasticSTERounding(int_var)
+        layer = STERounding(int_var, stochastic=True)
         layer.eval()
         data = {"x_rel": torch.randn(16, 3)}
         result = layer(data)
@@ -539,17 +529,11 @@ class TestDynamicThresholdRounding:
 # ── TestStochasticDynamicThresholdRounding ───────────────────────────
 
 class TestStochasticDynamicThresholdRounding:
-    """Test StochasticDynamicThresholdRounding layer."""
-
-    def test_inherits_dynamic_threshold(self):
-        """Should be a subclass of DynamicThresholdRounding."""
-        assert issubclass(
-            StochasticDynamicThresholdRounding, DynamicThresholdRounding
-        )
+    """Test DynamicThresholdRounding(stochastic=True) layer."""
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
+        layer = DynamicThresholdRounding(net, [p], [int_var], stochastic=True)
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -557,7 +541,7 @@ class TestStochasticDynamicThresholdRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(net, [p], [bin_var])
+        layer = DynamicThresholdRounding(net, [p], [bin_var], stochastic=True)
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -567,7 +551,7 @@ class TestStochasticDynamicThresholdRounding:
     def test_train_stochastic(self, int_var):
         """Train mode should produce different results across calls."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
+        layer = DynamicThresholdRounding(net, [p], [int_var], stochastic=True)
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         p_data = torch.randn(2, 4)
@@ -580,7 +564,7 @@ class TestStochasticDynamicThresholdRounding:
     def test_gradient_flow(self, int_var):
         """Gradients should flow through Gumbel-Softmax path."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
+        layer = DynamicThresholdRounding(net, [p], [int_var], stochastic=True)
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -596,7 +580,7 @@ class TestStochasticDynamicThresholdRounding:
     def test_eval_deterministic(self, int_var):
         """Eval mode should produce deterministic results."""
         net = _make_net(4, 3)
-        layer = StochasticDynamicThresholdRounding(net, [p], [int_var])
+        layer = DynamicThresholdRounding(net, [p], [int_var], stochastic=True)
         layer.eval()
         p_data = torch.randn(1, 4)
         data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
@@ -607,7 +591,7 @@ class TestStochasticDynamicThresholdRounding:
 
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
-        layer = StochasticDynamicThresholdRounding(net, [p], multi_vars)
+        layer = DynamicThresholdRounding(net, [p], multi_vars, stochastic=True)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -778,17 +762,11 @@ class TestAdaptiveSelectionRounding:
 # ── TestStochasticAdaptiveSelectionRounding ──────────────────────────
 
 class TestStochasticAdaptiveSelectionRounding:
-    """Test StochasticAdaptiveSelectionRounding layer."""
-
-    def test_inherits_adaptive_selection(self):
-        """Should be a subclass of AdaptiveSelectionRounding."""
-        assert issubclass(
-            StochasticAdaptiveSelectionRounding, AdaptiveSelectionRounding
-        )
+    """Test AdaptiveSelectionRounding(stochastic=True) layer."""
 
     def test_output_shape(self, int_var):
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], stochastic=True)
         data = {"x_rel": torch.randn(8, 3), "p": torch.randn(8, 4)}
         result = layer(data)
         assert result["x"].shape == (8, 3)
@@ -796,7 +774,7 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_binary_rounding(self, bin_var):
         """Binary variables should be 0 or 1."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], [bin_var])
+        layer = AdaptiveSelectionRounding(net, [p], [bin_var], stochastic=True)
         layer.eval()
         data = {"x_rel": torch.tensor([[0.3, 0.7, 0.5]]), "p": torch.randn(1, 4)}
         result = layer(data)
@@ -806,7 +784,7 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_train_stochastic(self, int_var):
         """Train mode should produce different results across calls."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], stochastic=True)
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         p_data = torch.randn(2, 4)
@@ -819,7 +797,7 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_gradient_flow(self, int_var):
         """Gradients should flow through Gumbel-Softmax path."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], stochastic=True)
         layer.train()
         # Batch size >= 2 required for BatchNorm in train mode
         data = {
@@ -835,7 +813,7 @@ class TestStochasticAdaptiveSelectionRounding:
     def test_eval_deterministic(self, int_var):
         """Eval mode should produce deterministic results."""
         net = _make_net(4, 3)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], [int_var])
+        layer = AdaptiveSelectionRounding(net, [p], [int_var], stochastic=True)
         layer.eval()
         p_data = torch.randn(1, 4)
         data1 = {"x_rel": torch.tensor([[1.3, 2.7, 0.1]]), "p": p_data}
@@ -846,7 +824,7 @@ class TestStochasticAdaptiveSelectionRounding:
 
     def test_multi_var(self, multi_vars):
         net = _make_net(4, 5)
-        layer = StochasticAdaptiveSelectionRounding(net, [p], multi_vars)
+        layer = AdaptiveSelectionRounding(net, [p], multi_vars, stochastic=True)
         layer.eval()
         data = {
             "x_rel": torch.tensor([[1.3, 2.7, 0.1]]),
@@ -866,18 +844,12 @@ class TestRoundingNodeExport:
     def test_import_from_rounding(self):
         from reins.node.rounding import (
             STERounding,
-            StochasticSTERounding,
             DynamicThresholdRounding,
-            StochasticDynamicThresholdRounding,
             AdaptiveSelectionRounding,
-            StochasticAdaptiveSelectionRounding,
         )
         assert STERounding is not None
-        assert StochasticSTERounding is not None
         assert DynamicThresholdRounding is not None
-        assert StochasticDynamicThresholdRounding is not None
         assert AdaptiveSelectionRounding is not None
-        assert StochasticAdaptiveSelectionRounding is not None
 
     def test_base_classes_internal(self):
         """Base classes should be importable from base module, not package."""
@@ -888,11 +860,8 @@ class TestRoundingNodeExport:
     def test_all_are_nodes(self):
         """All rounding nodes should be Node subclasses."""
         assert issubclass(STERounding, Node)
-        assert issubclass(StochasticSTERounding, Node)
         assert issubclass(DynamicThresholdRounding, Node)
-        assert issubclass(StochasticDynamicThresholdRounding, Node)
         assert issubclass(AdaptiveSelectionRounding, Node)
-        assert issubclass(StochasticAdaptiveSelectionRounding, Node)
 
     def test_base_is_abstract(self):
         """RoundingNode should not be directly instantiable."""
@@ -992,7 +961,7 @@ class TestNumericalDynamicThreshold:
         net_d = self._fixed_net(2, [0.0, 0.0])
         net_s = self._fixed_net(2, [0.0, 0.0])
         det = DynamicThresholdRounding(net_d, [p], [var], slope=10)
-        sto = StochasticDynamicThresholdRounding(net_s, [p], [var])
+        sto = DynamicThresholdRounding(net_s, [p], [var], stochastic=True)
         det.eval()
         sto.eval()
         data_d = {"x_rel": torch.tensor([[1.3, 2.7]]), "p": torch.zeros(1, 4)}
@@ -1079,7 +1048,7 @@ class TestNumericalAdaptiveSelection:
         net_d = self._fixed_net(1, [0.0])
         net_s = self._fixed_net(1, [0.0])
         det = AdaptiveSelectionRounding(net_d, [p], [var])
-        sto = StochasticAdaptiveSelectionRounding(net_s, [p], [var])
+        sto = AdaptiveSelectionRounding(net_s, [p], [var], stochastic=True)
         det.eval()
         sto.eval()
         data_d = {"x_rel": torch.tensor([[1.3]]), "p": torch.zeros(1, 4)}
@@ -1121,8 +1090,8 @@ class TestNumericalTemperatureEffect:
         # With temp=0.1, sigmoid(x/0.1): boundary is still at frac=0.5
         # With temp=10, sigmoid(x/10): boundary is still at frac=0.5
         # But at frac=0.4999, (frac-0.5)=-0.0001:
-        cold = StochasticSTERounding(var, temperature=0.1)
-        hot = StochasticSTERounding(var, temperature=10.0)
+        cold = STERounding(var, stochastic=True, temperature=0.1)
+        hot = STERounding(var, stochastic=True, temperature=10.0)
         cold.eval()
         hot.eval()
         # frac-0.5 = -0.0001
@@ -1352,12 +1321,12 @@ class TestNumericalSTERounding:
 # ── TestNumericalStochasticSTERounding ───────────────────────────────
 
 class TestNumericalStochasticSTERounding:
-    """Verify StochasticSTERounding eval-mode numerical outputs."""
+    """Verify STERounding(stochastic=True) eval-mode numerical outputs."""
 
     def test_eval_integer_exact_values(self):
         """Eval mode integer rounding via DiffGumbelBinarize."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
-        layer = StochasticSTERounding(var, temperature=1.0)
+        layer = STERounding(var, stochastic=True, temperature=1.0)
         layer.eval()
         # x_rel = [1.3, 2.7, 0.1]
         # floor:  [1.0, 2.0, 0.0]
@@ -1373,7 +1342,7 @@ class TestNumericalStochasticSTERounding:
     def test_eval_binary_exact_values(self):
         """Eval mode binary rounding via DiffGumbelBinarize."""
         var = _make_var("x", 3, binary_indices=[0, 1, 2])
-        layer = StochasticSTERounding(var, temperature=1.0)
+        layer = STERounding(var, stochastic=True, temperature=1.0)
         layer.eval()
         # x - 0.5: [0.3, -0.3, 0.0]
         # sigmoid(0.3) > 0.5 -> 1, sigmoid(-0.3) < 0.5 -> 0
@@ -1384,10 +1353,10 @@ class TestNumericalStochasticSTERounding:
         assert torch.allclose(result, expected)
 
     def test_eval_differs_from_ste_at_boundary(self):
-        """At frac=0.5, STERounding rounds UP but StochasticSTERounding rounds DOWN."""
+        """At frac=0.5, STERounding rounds UP but stochastic mode rounds DOWN."""
         var = _make_var("x", 1, integer_indices=[0])
         ste = STERounding(var)
-        stochastic = StochasticSTERounding(var, temperature=1.0)
+        stochastic = STERounding(var, stochastic=True, temperature=1.0)
         ste.eval()
         stochastic.eval()
         # frac = 0.5, frac - 0.5 = 0.0
@@ -1405,7 +1374,7 @@ class TestNumericalStochasticSTERounding:
         """Away from frac=0.5, both should agree."""
         var = _make_var("x", 3, integer_indices=[0, 1, 2])
         ste = STERounding(var)
-        stochastic = StochasticSTERounding(var, temperature=1.0)
+        stochastic = STERounding(var, stochastic=True, temperature=1.0)
         ste.eval()
         stochastic.eval()
         # frac values [0.3, 0.7, 0.1] are away from 0.5
