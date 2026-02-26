@@ -43,14 +43,18 @@ class GradientProjection:
         """
         # Clone and enable grad for all target variables
         xs = {k: data[k].clone().requires_grad_(True) for k in self.target_keys}
-        # Save originals for NaN fallback
+        # Save originals as ultimate fallback
         xs_orig = {k: data[k].clone() for k in self.target_keys}
         batch_size = next(iter(xs.values())).shape[0]
         device = next(iter(xs.values())).device
         d = 1.0
 
+        # Per-sample step multiplier for backtracking
+        sample_d = torch.ones(batch_size, device=device)
         # Per-sample iteration tracking
         sample_iters = torch.zeros(batch_size, dtype=torch.long, device=device)
+        # Last known-good state per sample (for backtracking)
+        xs_prev = {k: xs[k].detach().clone() for k in self.target_keys}
 
         # Cache constraint violation keys
         viol_keys = [con.output_keys[2] for con in self.constraints]
@@ -72,16 +76,42 @@ class GradientProjection:
                 out = con(temp_data)
                 total_viol = total_viol + out[vk].reshape(batch_size, -1).sum(dim=1)
 
-            # Track per-sample convergence (feasible or NaN)
             finite_mask = torch.isfinite(total_viol)
             unsettled = sample_iters == 0
-            newly_settled = unsettled & (~finite_mask | (total_viol < self.tolerance))
-            sample_iters[newly_settled] = num_iters
 
-            # Active samples: finite and still violating constraints
-            active_mask = finite_mask & (total_viol >= self.tolerance)
-            if not active_mask.any():
+            # Backtracking: revert diverged samples to previous state, halve step
+            diverged = unsettled & ~finite_mask
+            if diverged.any():
+                if num_iters == 1:
+                    # First evaluation: no gradient step taken yet, nothing to backtrack to
+                    sample_iters[diverged] = num_iters
+                else:
+                    xs = {
+                        k: torch.where(diverged.unsqueeze(-1), xs_prev[k], xs[k])
+                            .detach().requires_grad_(True)
+                        for k in self.target_keys
+                    }
+                    sample_d[diverged] *= 0.5
+                    # Settle samples whose step multiplier is too small
+                    sample_iters[diverged & (sample_d < 1e-8)] = num_iters
+
+            # Mark converged (feasible) samples as settled
+            converged = unsettled & finite_mask & (total_viol < self.tolerance)
+            sample_iters[converged] = num_iters
+
+            # Active: unsettled, finite, still infeasible, not just-diverged
+            active_mask = (sample_iters == 0) & finite_mask & (total_viol >= self.tolerance)
+
+            # Stop if all samples are settled
+            if not (sample_iters == 0).any():
                 break
+            # Skip gradient step if only diverged-and-reverted samples remain
+            if not active_mask.any():
+                continue
+
+            # Save current good state before gradient step
+            for k in self.target_keys:
+                xs_prev[k][active_mask] = xs[k][active_mask].detach()
 
             # Backprop only through active (infeasible) samples
             grads = torch.autograd.grad(
@@ -89,7 +119,8 @@ class GradientProjection:
                 allow_unused=True,
             )
             xs = {
-                k: (xs[k] - d * self.step_size * g).detach().requires_grad_(True)
+                k: (xs[k] - (sample_d * d * self.step_size).unsqueeze(-1) * g
+                     ).detach().requires_grad_(True)
                 if g is not None else xs[k]
                 for k, g in zip(self.target_keys, grads)
             }
@@ -100,12 +131,12 @@ class GradientProjection:
         self.num_iters = num_iters
         data["_proj_iters"] = sample_iters
 
-        # Final update — revert NaN samples to pre-projection originals
+        # Revert non-finite (NaN/inf) samples to originals
         for k in self.target_keys:
             projected = xs[k].detach()
-            nan_mask = torch.isnan(projected).any(dim=-1)
-            if nan_mask.any():
-                projected[nan_mask] = xs_orig[k][nan_mask]
+            bad_mask = ~torch.isfinite(projected).all(dim=-1)
+            if bad_mask.any():
+                projected[bad_mask] = xs_orig[k][bad_mask]
             data[k] = projected
 
         # Final round
