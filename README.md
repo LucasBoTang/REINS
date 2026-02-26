@@ -147,10 +147,10 @@ rnd_net = MLPBnDrop(
 )
 
 # Adaptive Selection (AS): (b, x_rel) -> rnd_net -> x
-rounding = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x])
+rnd = StochasticAdaptiveSelectionRounding(rnd_net, [b], [x])
 
 # Dynamic Thresholding (DT): (b, x_rel) -> rnd_net -> x
-rounding = DynamicThresholdRounding(rnd_net, [b], [x])
+rnd = DynamicThresholdRounding(rnd_net, [b], [x])
 ```
 
 
@@ -162,10 +162,17 @@ rounding = DynamicThresholdRounding(rnd_net, [b], [x])
 from reins import LearnableSolver
 
 # Default: GradientProjection enabled (10000 steps with decay) for feasibility enforcement at inference
-solver = LearnableSolver(rel, rounding, loss)
+solver = LearnableSolver(
+    relaxation_node=rel,
+    rounding_node=rnd,
+    loss=loss)
 
 # Disable projection
-solver = LearnableSolver(rel, rounding, loss, projection_steps=0)
+solver = LearnableSolver(
+    relaxation_node=rel,
+    rounding_node=rnd,
+    loss=loss,
+    projection_steps=0)
 ```
 
 
