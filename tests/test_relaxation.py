@@ -112,6 +112,22 @@ class TestRelaxationNodeInit:
         rel = RelaxationNode(net, [_var("b")], [_typed_var("x", 3)])
         assert rel.sizes == [3]
 
+    def test_sizes_vs_output_dim_mismatch_raises(self):
+        """sum(sizes) != network out_features should raise ValueError."""
+        net = nn.Linear(4, 6)
+        with pytest.raises(ValueError, match="network output dim"):
+            RelaxationNode(
+                net, [_var("b")], [_var("x"), _var("y")], sizes=[2, 2]
+            )
+
+    def test_auto_derived_sizes_vs_output_dim_mismatch_raises(self):
+        """Auto-derived sizes that don't match network output should raise."""
+        net = nn.Linear(4, 10)  # out_features=10
+        with pytest.raises(ValueError, match="network output dim"):
+            RelaxationNode(
+                net, [_var("b")], [_typed_var("x", 3), _typed_var("y", 3)]
+            )  # sum=6 != 10
+
 
 # ── TestRelaxationNodeForward ───────────────────────────────────────────────
 
@@ -279,6 +295,34 @@ class TestRelaxationNodeNumerical:
 
 
 # ── TestRelaxationNodeExport ────────────────────────────────────────────────
+
+class TestRelaxationNodeGradient:
+    """Verify gradient flow through RelaxationNode."""
+
+    def test_gradient_flows_through(self):
+        """Gradient should flow from output back to network parameters."""
+        net = nn.Linear(4, 3)
+        rel = RelaxationNode(net, [_var("b")], [_var("x")])
+        data = {"b": torch.randn(2, 4)}
+        result = rel(data)
+        loss = result["x_rel"].sum()
+        loss.backward()
+        assert net.weight.grad is not None
+        assert net.bias.grad is not None
+        assert (net.weight.grad != 0).any()
+
+    def test_multi_var_gradient_independence(self):
+        """Gradients from one output var should not affect the other's slice."""
+        net = nn.Linear(4, 6)
+        rel = RelaxationNode(net, [_var("b")], [_var("x"), _var("y")], sizes=[3, 3])
+        data = {"b": torch.randn(2, 4)}
+        result = rel(data)
+        # Only backprop through x_rel
+        loss = result["x_rel"].sum()
+        loss.backward()
+        # Gradient should exist on the network
+        assert net.weight.grad is not None
+
 
 class TestRelaxationNodeExport:
     """Test that RelaxationNode is exported correctly."""

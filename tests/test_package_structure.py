@@ -55,3 +55,36 @@ class TestNeuromancerReExports:
         for name in expected:
             assert name in reins.__all__, f"{name} missing from __all__"
             assert hasattr(reins, name), f"{name} not accessible"
+
+
+class TestNodeSubpackageReExports:
+    """Test that reins.node re-exports rounding classes."""
+
+    def test_relaxation_node_from_node(self):
+        from reins.node import RelaxationNode
+        from reins.node.relaxation import RelaxationNode as Direct
+        assert RelaxationNode is Direct
+
+    def test_ste_rounding_from_node(self):
+        from reins.node import STERounding
+        from reins.node.rounding.ste import STERounding as Direct
+        assert STERounding is Direct
+
+    def test_dynamic_threshold_from_node(self):
+        from reins.node import DynamicThresholdRounding
+        from reins.node.rounding.threshold import DynamicThresholdRounding as Direct
+        assert DynamicThresholdRounding is Direct
+
+    def test_adaptive_selection_from_node(self):
+        from reins.node import AdaptiveSelectionRounding
+        from reins.node.rounding.selection import AdaptiveSelectionRounding as Direct
+        assert AdaptiveSelectionRounding is Direct
+
+
+class TestProjectionSubpackageReExports:
+    """Test that reins.projection re-exports classes."""
+
+    def test_gradient_projection_from_projection(self):
+        from reins.projection import GradientProjection
+        from reins.projection.gradient import GradientProjection as Direct
+        assert GradientProjection is Direct

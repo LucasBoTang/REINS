@@ -129,6 +129,43 @@ class TestLearnableSolverConstruction:
         solver = LearnableSolver(rel, rnd, loss)
         assert solver is not None
 
+    def test_dimension_check_with_outsize_attribute(self, loss):
+        """Should use outsize attribute as fallback when out_features is absent."""
+        var = _make_var("x", 3, integer_indices=[0, 1, 2])
+
+        class NetWithOutsize(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(4, 3)
+                self.outsize = 3  # fallback attribute
+            def forward(self, x):
+                return self.linear(x)
+
+        net = NetWithOutsize()
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        # Should succeed (outsize=3 == num_vars=3)
+        solver = LearnableSolver(rel, rnd, loss)
+        assert solver is not None
+
+    def test_dimension_check_outsize_mismatch_raises(self, loss):
+        """Should raise when outsize doesn't match total rounding dim."""
+        var = _make_var("x", 3, integer_indices=[0, 1, 2])
+
+        class NetWithBadOutsize(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(4, 5)
+                self.outsize = 5
+            def forward(self, x):
+                return self.linear(x)
+
+        net = NetWithBadOutsize()
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        with pytest.raises(ValueError, match="Relaxation output dim"):
+            LearnableSolver(rel, rnd, loss)
+
     def test_projection_default_enabled(self, rel,rounding, loss):
         """Projection should be enabled by default (constraints from loss)."""
         solver = LearnableSolver(rel, rounding, loss)
@@ -231,6 +268,17 @@ class TestLearnableSolverPredict:
         x = result["x"]
         assert torch.equal(x, x.round()), "Integer variables should be integral after rounding"
 
+    def test_predict_proj_iters_without_projection(self, rel,rounding, loss):
+        """predict() without projection should set _proj_iters to zeros."""
+        solver = LearnableSolver(
+            rel, rounding, loss, projection_steps=0,
+        )
+        data = {"b": torch.randn(3, 4)}
+        result = solver.predict(data)
+        assert "_proj_iters" in result
+        assert result["_proj_iters"].shape == (3,)
+        assert (result["_proj_iters"] == 0).all()
+
 
 # ---- TestLearnableSolverPredictWithProjection ----
 
@@ -288,6 +336,25 @@ class TestLearnableSolverPredictWithProjection:
         result = solver.predict(data)
         x = result["x"]
         assert torch.equal(x, x.round()), "Integer variables should be integral after projection"
+
+    def test_predict_with_projection_has_proj_iters(self):
+        """predict() with projection should set _proj_iters > 0."""
+        var = _make_var("x", 3, integer_indices=[0, 1, 2])
+        net = nn.Linear(4, 3)
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        con = _make_constraint("x", upper_bound=5.0)
+        loss = _make_loss("x", constraints=[con])
+        solver = LearnableSolver(
+            rel, rnd, loss,
+            projection_steps=50,
+            projection_step_size=0.1,
+        )
+        data = {"b": torch.randn(2, 4)}
+        result = solver.predict(data)
+        assert "_proj_iters" in result
+        assert result["_proj_iters"].shape == (2,)
+        assert (result["_proj_iters"] > 0).all()
 
 
 # ---- TestLearnableSolverVariableTypes ----
@@ -480,3 +547,82 @@ class TestLearnableSolverExport:
         """Should be listed in __all__."""
         import reins
         assert "LearnableSolver" in reins.__all__
+
+
+# ---- TestLearnableSolverNumerical ----
+
+class TestLearnableSolverNumerical:
+    """Numerical tests for LearnableSolver predict behavior."""
+
+    def test_predict_deterministic_in_eval(self):
+        """Two identical predict calls should return identical results."""
+        var = _make_var("x", 3, integer_indices=[0, 1, 2])
+        net = nn.Linear(4, 3)
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        loss = _make_loss("x")
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
+
+        b = torch.randn(5, 4)
+        r1 = solver.predict({"b": b.clone()})
+        r2 = solver.predict({"b": b.clone()})
+        assert torch.equal(r1["x"], r2["x"])
+
+    def test_predict_known_weights(self):
+        """With known weights, predict should return expected integer values."""
+        var = _make_var("x", 2, integer_indices=[0, 1])
+        net = nn.Linear(2, 2, bias=True)
+        with torch.no_grad():
+            net.weight.copy_(torch.eye(2))
+            net.bias.zero_()
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        loss = _make_loss("x")
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
+
+        # b = [1.3, 2.7] -> x_rel = [1.3, 2.7]
+        # STE: floor + binarize(frac - 0.5) => floor(1.3)+0=1, floor(2.7)+1=3
+        data = {"b": torch.tensor([[1.3, 2.7]])}
+        result = solver.predict(data)
+        assert torch.equal(result["x"], torch.tensor([[1.0, 3.0]]))
+
+    def test_predict_negative_values(self):
+        """STE rounding should handle negative values correctly."""
+        var = _make_var("x", 2, integer_indices=[0, 1])
+        net = nn.Linear(2, 2, bias=True)
+        with torch.no_grad():
+            net.weight.copy_(torch.eye(2))
+            net.bias.zero_()
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        loss = _make_loss("x")
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
+
+        # b = [-1.7, -0.3] -> x_rel = [-1.7, -0.3]
+        # STE: floor(-1.7)=-2, frac=0.3, binarize(-0.2)=0 => -2
+        #      floor(-0.3)=-1, frac=0.7, binarize(0.2)=1  => 0
+        data = {"b": torch.tensor([[-1.7, -0.3]])}
+        result = solver.predict(data)
+        assert torch.equal(result["x"], torch.tensor([[-2.0, 0.0]]))
+
+    def test_predict_batch_independence(self):
+        """Each sample in batch should be independent."""
+        var = _make_var("x", 2, integer_indices=[0, 1])
+        net = nn.Linear(2, 2, bias=True)
+        with torch.no_grad():
+            net.weight.copy_(torch.eye(2))
+            net.bias.zero_()
+        rel = Node(net, ["b"], ["x_rel"], name="relaxation")
+        rnd = STERounding(var)
+        loss = _make_loss("x")
+        solver = LearnableSolver(rel, rnd, loss, projection_steps=0)
+
+        b1 = torch.tensor([[1.3, 2.7]])
+        b2 = torch.tensor([[3.1, 4.9]])
+        # Single predict
+        r1 = solver.predict({"b": b1.clone()})
+        r2 = solver.predict({"b": b2.clone()})
+        # Batch predict
+        r_batch = solver.predict({"b": torch.cat([b1, b2], dim=0)})
+        assert torch.equal(r_batch["x"][0], r1["x"][0])
+        assert torch.equal(r_batch["x"][1], r2["x"][0])

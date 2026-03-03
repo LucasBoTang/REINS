@@ -356,3 +356,170 @@ class TestGradientProjectionNumerical:
         result = proj(data)
         # Both samples should be closer to feasible
         assert (result["x"] <= 3.0 + 0.5).all()
+
+
+class TestGradientProjectionProjIters:
+    """Tests for _proj_iters tracking in GradientProjection."""
+
+    def test_proj_iters_present_in_output(self):
+        """Returned data should contain _proj_iters key."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=10.0)],
+            target_keys=["x_rel"],
+            num_steps=100,
+        )
+        data = {"x_rel": torch.tensor([[1.0, 2.0]])}
+        result = proj(data)
+        assert "_proj_iters" in result
+
+    def test_proj_iters_shape_matches_batch(self):
+        """_proj_iters should have one entry per sample."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=10.0)],
+            target_keys=["x_rel"],
+            num_steps=100,
+        )
+        data = {"x_rel": torch.tensor([[1.0], [2.0], [3.0]])}
+        result = proj(data)
+        assert result["_proj_iters"].shape == (3,)
+
+    def test_proj_iters_early_stop_fewer_iters(self):
+        """Feasible input should converge in few iterations."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=100.0)],
+            target_keys=["x_rel"],
+            num_steps=1000,
+            tolerance=1e-6,
+        )
+        data = {"x_rel": torch.tensor([[1.0, 2.0]])}
+        result = proj(data)
+        # Should converge very quickly (violation is already 0)
+        assert result["_proj_iters"][0].item() <= 5
+
+    def test_num_iters_attribute_updated(self):
+        """num_iters attribute should be updated after __call__."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=10.0)],
+            target_keys=["x_rel"],
+            num_steps=100,
+            tolerance=1e-6,
+        )
+        assert proj.num_iters == 0
+        data = {"x_rel": torch.tensor([[1.0]])}
+        proj(data)
+        assert proj.num_iters > 0
+
+
+class TestGradientProjectionNumericalConvergence:
+    """Additional numerical convergence tests."""
+
+    def test_exact_convergence_single_variable(self):
+        """Single variable should converge to boundary value."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=3.0)],
+            target_keys=["x_rel"],
+            num_steps=1000,
+            step_size=0.1,
+            decay=1.0,
+            tolerance=1e-8,
+        )
+        # round(5.5) = 6.0, needs to project down to 3.0
+        data = {"x_rel": torch.tensor([[5.5]])}
+        result = proj(data)
+        assert result["x"].item() <= 3.0 + 0.01
+
+    def test_multi_dim_convergence(self):
+        """Multi-dimensional variable should converge per-dimension."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=2.0)],
+            target_keys=["x_rel"],
+            num_steps=500,
+            step_size=0.1,
+            decay=1.0,
+            tolerance=1e-8,
+        )
+        # [1.2, 5.5, 3.7] -> round = [1, 6, 4]. Index 0 feasible, 1 and 2 violate
+        data = {"x_rel": torch.tensor([[1.2, 5.5, 3.7]])}
+        result = proj(data)
+        assert (result["x"] <= 2.0 + 0.1).all()
+        # Index 0 should still be feasible
+        assert result["x"][0, 0].item() <= 2.0
+
+    def test_lower_and_upper_bound_simultaneous(self):
+        """Test projection with both lower and upper bounds."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[
+                MockConstraint(upper_bound=5.0, name="ub"),
+                MockLowerBoundConstraint(lower_bound=2.0, name="lb"),
+            ],
+            target_keys=["x_rel"],
+            num_steps=500,
+            step_size=0.1,
+            decay=1.0,
+            tolerance=1e-8,
+        )
+        # round(0.5) = 0.0, violates lb=2. round(8.5) = 8.0, violates ub=5.
+        data = {"x_rel": torch.tensor([[0.5, 8.5]])}
+        result = proj(data)
+        # Both should be in [2, 5]
+        assert result["x"][0, 0].item() >= 1.5
+        assert result["x"][0, 1].item() <= 5.5
+
+    def test_large_batch_convergence(self):
+        """All samples in a large batch should converge to feasibility."""
+        proj = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=3.0)],
+            target_keys=["x_rel"],
+            num_steps=500,
+            step_size=0.1,
+            decay=1.0,
+            tolerance=1e-8,
+        )
+        torch.manual_seed(0)
+        # 32 samples, 4 dims, values in [3, 8] -> all violate upper=3
+        data = {"x_rel": 3.0 + 5.0 * torch.rand(32, 4)}
+        result = proj(data)
+        assert (result["x"] <= 3.0 + 0.1).all()
+
+    def test_violation_monotonically_decreases_with_more_steps(self):
+        """More steps should lead to less or equal violation."""
+        data_10 = {"x_rel": torch.tensor([[7.5]])}
+        data_100 = {"x_rel": torch.tensor([[7.5]])}
+        proj_10 = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=3.0)],
+            target_keys=["x_rel"],
+            num_steps=10,
+            step_size=0.1,
+            decay=1.0,
+        )
+        proj_100 = GradientProjection(
+            rounding_components=[MockRounding()],
+            constraints=[MockConstraint(upper_bound=3.0, name="m2")],
+            target_keys=["x_rel"],
+            num_steps=100,
+            step_size=0.1,
+            decay=1.0,
+        )
+        r10 = proj_10(data_10)
+        r100 = proj_100(data_100)
+        viol_10 = torch.relu(r10["x"] - 3.0).sum().item()
+        viol_100 = torch.relu(r100["x"] - 3.0).sum().item()
+        assert viol_100 <= viol_10 + 1e-6
+
+
+class TestGradientProjectionExport:
+    """Test GradientProjection import paths."""
+
+    def test_import_from_projection_package(self):
+        """Should be importable from reins.projection."""
+        from reins.projection import GradientProjection as GP
+        assert GP is GradientProjection
