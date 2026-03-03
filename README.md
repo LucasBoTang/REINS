@@ -1,5 +1,13 @@
 # REINS: Relaxation-Enforced Integer Neural Neighbourhood Search for Parametric MINLP with Feasibility Guarantees
 
+[![License](https://img.shields.io/pypi/l/reins?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
+[![GitHub Stars](https://img.shields.io/github/stars/LucasBoTang/REINS?style=flat-square)](https://github.com/LucasBoTang/REINS/stargazers)
+[![Python](https://img.shields.io/pypi/pyversions/reins.svg?style=flat-square)](https://pypi.org/project/reins/)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=flat-square)
+[![PyPI version](https://img.shields.io/pypi/v/reins.svg?style=flat-square)](https://pypi.org/project/reins/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/reins?style=flat-square)](https://pepy.tech/project/reins)
+[![Paper](https://img.shields.io/badge/arXiv-2410.11061-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2410.11061)
+
 ![Framework](img/pipeline.png)
 
 Based on the paper: **"[Learning to Optimize for Mixed-Integer Nonlinear Programming with Feasibility Guarantees](https://arxiv.org/abs/2410.11061)"**
