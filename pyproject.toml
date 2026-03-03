@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "Bo Tang", email = "botang@mie.utoronto.ca" },
+    { name = "Bo Tang", email = "botang@mit.edu" },
 ]
 keywords = ["optimization", "MINLP", "mixed-integer", "nonlinear programming", "learning-to-optimize"]
 classifiers = [
