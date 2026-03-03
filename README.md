@@ -2,6 +2,7 @@
 
 [![License](https://img.shields.io/pypi/l/reins?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub Stars](https://img.shields.io/github/stars/LucasBoTang/REINS?style=flat-square)](https://github.com/LucasBoTang/REINS/stargazers)
+[![Tests](https://img.shields.io/github/actions/workflow/status/LucasBoTang/REINS/tests.yml?branch=main&style=flat-square&label=tests)](https://github.com/LucasBoTang/REINS/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/pypi/pyversions/reins.svg?style=flat-square)](https://pypi.org/project/reins/)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=flat-square)
 [![PyPI version](https://img.shields.io/pypi/v/reins.svg?style=flat-square)](https://pypi.org/project/reins/)
