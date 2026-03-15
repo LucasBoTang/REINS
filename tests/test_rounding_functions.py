@@ -159,14 +159,15 @@ class TestDiffGumbelBinarize:
         assert x.grad is not None
         assert not torch.all(x.grad == 0)
 
-    def test_no_gradient_eval(self):
-        """Eval mode has no differentiable path."""
+    def test_gradient_exists_eval(self):
+        """Eval mode should produce gradients via STE for projection."""
         gumbel = DiffGumbelBinarize()
         gumbel.eval()
         x = torch.tensor([0.5, -0.5], requires_grad=True)
         y = gumbel(x)
-        # Hard threshold detaches from computation graph
-        assert not y.requires_grad
+        y.sum().backward()
+        assert x.grad is not None
+        assert not torch.all(x.grad == 0)
 
     def test_temperature_effect(self):
         """Lower temperature should produce sharper outputs."""
@@ -275,15 +276,16 @@ class TestGumbelThresholdBinarize:
         result.backward()
         assert x.grad is not None
 
-    def test_no_gradient_eval(self):
-        """Eval mode has no differentiable path."""
+    def test_gradient_exists_eval(self):
+        """Eval mode should produce gradients via STE for projection."""
         gtb = GumbelThresholdBinarize()
         gtb.eval()
         x = torch.tensor([0.5], requires_grad=True)
         threshold = torch.tensor([0.4])
         result = gtb(x, threshold)
-        # Hard threshold detaches from computation graph
-        assert not result.requires_grad
+        result.backward()
+        assert x.grad is not None
+        assert not torch.all(x.grad == 0)
 
     def test_threshold_clamped(self):
         """Thresholds outside [0, 1] should be clamped."""

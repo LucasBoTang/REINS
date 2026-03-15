@@ -55,8 +55,10 @@ class DiffGumbelBinarize(nn.Module):
             # STE: Attach gradient from soft sample to hard output
             return hard_sample + (soft_sample - soft_sample.detach())
         else:
-            # Deterministic threshold in eval
-            return (torch.sigmoid(x / self.temperature) > 0.5).float()
+            # Deterministic threshold in eval with STE for gradient flow
+            soft = torch.sigmoid(x / self.temperature)
+            hard = (x > 0).float()
+            return soft + (hard - soft).detach()
 
 
 class GumbelThresholdBinarize(nn.Module):
@@ -88,8 +90,10 @@ class GumbelThresholdBinarize(nn.Module):
             # STE: Attach gradient from soft sample to hard output
             return hard_sample + (soft_sample - soft_sample.detach())
         else:
-            # Deterministic threshold in eval
-            return (diff >= 0).float()
+            # Deterministic threshold in eval with STE for gradient flow
+            soft = torch.sigmoid(diff / self.temperature)
+            hard = (diff >= 0).float()
+            return soft + (hard - soft).detach()
 
 
 class ThresholdBinarize(nn.Module):
